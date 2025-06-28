@@ -4,15 +4,25 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ptr Brightera Academy</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-LN+7fdVzj6u52u30Kp6M/trliBMCMKTyK833zpbD+pXdCLuTusPj697FH4R/5mcr" crossorigin="anonymous">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
 </head>
 <body>
-  <div id="container">
-    <h1>Ptr Brightera Academy Careers</h1>
-    <img id="banner" src="{{ url_for('static', filename='images/careers.jpg') }}" alt="Careers">
-    <h2>About Ptr Brightera Academy</h2>
-    <p>Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum.</p>
-    <h2>Open Positions</h2> 
+  <div class="container">
+    <h1 class="text-center mt-2 mb-4">Ptr Brightera Academy Careers</h1>
+    <img class="img-fluid" id="banner" src="{{ url_for('static', filename='images/careers.jpg') }}" alt="Careers">
+    <h2 class="text-center mt-3 ">About Ptr Brightera Academy</h2>
+    <p class="lead">Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum.</p>
+    <h2 class="text-center">Open Positions</h2> 
+    <div>
+       {% for job in jobs %}
+        {% include 'jobitems.html' %}
+      {% endfor %}
+    </div>
+    <div class="text-center" >
+      <button class="btn btn-primary btn-lg">Contact Us</button>
+        <p class="mt-4">Copyright 2025</p>
+    </div> 
   </div>
    
 </body>
