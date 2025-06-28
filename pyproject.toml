@@ -1,8 +1,10 @@
 [tool.poetry]
-package-mode = false
 name = "repl-nix-workspace"
 version = "0.1.0"
 description = "Add your description here"
-gunicorn = "^21.2.0" 
-requires-python = ">=3.11"
-dependencies = []
+package-mode = false
+authors = ["Peter Chikwanda <ptrbrighteraacademy@gmail.com>"]
+
+[tool.poetry.dependencies]
+python = ">=3.11"
+gunicorn = "^21.2.0"
