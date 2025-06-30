@@ -1,29 +1,50 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ptr Brightera Academy</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ptr Brightera Academy</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-LN+7fdVzj6u52u30Kp6M/trliBMCMKTyK833zpbD+pXdCLuTusPj697FH4R/5mcr" crossorigin="anonymous">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
 </head>
 <body>
+
+  {% include 'navbar.html' %}
+
+  <img class="img-fluid" id="banner" src="{{ url_for('static', filename='images/careers.jpg') }}" alt="Careers at Ptr Brightera Academy">
+
   <div class="container">
-    <h1 class="text-center mt-2 mb-4">Ptr Brightera Academy Careers</h1>
-    <img class="img-fluid" id="banner" src="{{ url_for('static', filename='images/careers.jpg') }}" alt="Careers">
-    <h2 class="text-center mt-3 ">About Ptr Brightera Academy</h2>
-    <p class="lead">Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum.</p>
-    <h2 class="text-center">Open Positions</h2> 
-    <div>
-       {% for job in jobs %}
-        {% include 'jobitems.html' %}
-      {% endfor %}
+    <h1 class="text-center mt-4 mb-4">Ptr Brightera Academy Careers</h1>
+    
+    <div class="row g-4 mb-5" style="margin-bottom: 16px">
+      <div class="col-md-6">
+        <p class="lead">
+At <strong>Ptr Brightera Academy</strong>, we believe in nurturing talent, empowering educators, and shaping the future of learning. Joining our team means being part of a dynamic and forward-thinking community that values innovation, collaboration, and a deep commitment to educational excellence. Whether you're an experienced professional or just beginning your journey in education, we offer opportunities to grow, lead, and make a lasting impact. Explore our open positions and discover how you can be part of something brighter.
+        </p>
+      </div>
+      <div class="d-none d-md-block col-md-6">
+        <img src="{{ url_for('static', filename='images/workers.jpg') }}" style="height:320px;border-radius:4px" class="img-fluid" alt="Employees at Ptr Brightera Academy">
+      </div>
     </div>
-    <div class="text-center" >
-      <button class="btn btn-primary btn-lg">Contact Us</button>
-        <p class="mt-4">Copyright 2025</p>
+
+    <h2 class="text-center mb-4">Open Positions</h2>
+    
+    <div>
+      {% if jobs %}
+        {% for job in jobs %}
+          {% include 'jobitems.html' %}
+        {% endfor %}
+      {% else %}
+        <p class="text-center text-muted">No open positions at the moment.</p>
+      {% endif %}
+    </div>
+
+    <div class="text-center mt-5">
+      <a href="/contact" class="btn btn-primary btn-lg">Contact Us</a>
     </div> 
   </div>
-   
+
+  {% include 'footer.html' %}
+
 </body>
 </html>
