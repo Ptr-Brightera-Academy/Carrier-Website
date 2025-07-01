@@ -1,6 +1,7 @@
 import os
 from sqlalchemy import create_engine, text
 
+
 cert_path = os.path.join(os.path.dirname(__file__), 'certs', 'isrgrootx1.pem')
 
 ssl_args = {

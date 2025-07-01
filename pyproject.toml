@@ -9,3 +9,5 @@ authors = ["Peter Chikwanda <ptrbrighteraacademy@gmail.com>"]
 python = ">=3.11"
 flask = "^2.3"
 gunicorn = "^21.2.0"
+sqlalchemy = "^2.0"
+pymysql = "^1.1"
