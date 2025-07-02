@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Application Submitted</title>
+  {% include 'bootstrap.html' %}
+</head>
+<body>
+
+  {% include 'navbar.html' %}
+  <div class="container">
+    <h1 class="text-center mt-4 mb-4">Ptr Brightera Academy Careers</h1>
+    <p> Your Application for {{job.title}} has been submitted successfully. We will get back to you soon.</p>
+  <h4>Full Name</h4>
+  <div class="mb-2">
+    {{ application.full_name }}
+  </div>
+  <h4>Email</h4>
+  <div class="mb-2">
+    {{ application.email }}
+  </div>
+  <h4>Linkedin</h4>
+  <div class="mb-2">
+    {{ application.linkedin_url }}
+  </div>
+  <h4>Education</h4>
+  <div>
+    {{ application.education }}
+  </div>
+  <h4>Experience</h4>
+  <div class="mb-2">
+    {{ application.experience }}
+  </div>
+  <h4>Resume URL</h4>
+  <div class="mb-2">
+    {{ application.resume_url }}
+  </div>
+  </div>
+  {% include 'footer.html' %}
+
+</body>
+</html>
