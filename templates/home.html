@@ -1,43 +1,53 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <title>Ptr Brightera Academy</title>
+  <title>Ptr Brightera Academy Careers</title>
   {% include 'bootstrap.html' %}
 </head>
 <body>
 
   {% include 'navbar.html' %}
-  {% include 'banner.html' %}
 
-  <div class="container">
-    <h1 class="text-center mt-4 mb-4">Ptr Brightera Academy Careers</h1>
-    
-    <div class="row g-4 mb-5" style="margin-bottom: 16px">
-      <div class="col-md-6">
+  <div class="container mt-5">
+
+    <header class="text-center mb-5">
+      <h1 class="display-5">Careers at Ptr Brightera Academy</h1>
+    </header>
+
+    <section class="row align-items-center mb-5">
+      <div class="col-md-6 mb-4 mb-md-0">
         <p class="lead">
-At <strong>Ptr Brightera Academy</strong>, we believe in nurturing talent, empowering educators, and shaping the future of learning. Joining our team means being part of a dynamic and forward-thinking community that values innovation, collaboration, and a deep commitment to educational excellence. Whether you're an experienced professional or just beginning your journey in education, we offer opportunities to grow, lead, and make a lasting impact. Explore our open positions and discover how you can be part of something brighter.
+          <strong>Ptr Brightera Academy</strong> believes in nurturing talent, empowering educators, and shaping the future of learning. 
+          Becoming part of our team means joining a dynamic, forward-thinking community that values innovation, collaboration, and educational excellence.
+        </p>
+        <p>
+          Whether you're a seasoned professional or just starting your career in education, we offer meaningful opportunities to grow, lead, and make a lasting impact. 
+          Explore our open roles and discover how you can help create something brighter.
         </p>
       </div>
-      <div class="d-none d-md-block col-md-6">
-        <img src="{{ url_for('static', filename='images/workers.jpg') }}" style="height:320px;border-radius:4px" class="img-fluid" alt="Employees at Ptr Brightera Academy">
+      <div class="col-md-6 text-center">
+        <img 
+          src="{{ url_for('static', filename='images/workers.jpg') }}" 
+          alt="Team at PTR Brightera Academy" 
+          class="img-fluid rounded shadow-sm" 
+          style="max-height: 320px; object-fit: cover;"
+        />
       </div>
-    </div>
+    </section>
 
-    <h2 class="text-center mb-4">Open Positions</h2>
+    <section>
+      <h2 class="text-center mb-4">Open Positions</h2>
+      <div>
+        {% if jobs %}
+          {% for job in jobs %}
+            {% include 'jobitems.html' %}
+          {% endfor %}
+        {% else %}
+          <p class="text-center text-muted">There are currently no open positions. Please check back soon.</p>
+        {% endif %}
+      </div>
+    </section>
     
-    <div>
-      {% if jobs %}
-        {% for job in jobs %}
-          {% include 'jobitems.html' %}
-        {% endfor %}
-      {% else %}
-        <p class="text-center text-muted">No open positions at the moment.</p>
-      {% endif %}
-    </div>
-
-    <div class="text-center mt-5">
-      <a href="/contact" class="btn btn-primary btn-lg">Contact Us</a>
-    </div> 
   </div>
 
   {% include 'footer.html' %}

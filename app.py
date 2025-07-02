@@ -19,12 +19,12 @@ def show_job(id):
 def apply_to_job(id):
     data = request.form
     job = get_job_from_db(id)
-    add_application_to_db(id, data)
+    # add_application_to_db(id, data)
     return render_template('application_submitted.html', application=data, job=job)
     
-@app.route("/contact-us")
+@app.route("/contact_us")
 def contact_us():
-    return "Contact Us"
+    return render_template('contact_us.html')
 
 if __name__ == "__main__":
     app.run(host='0.0.0.0', debug=True)
