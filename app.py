@@ -18,7 +18,6 @@ def show_job(id):
 @app.route("/job/<id>/apply", methods=['post'])
 def apply_to_job(id):
     data = request.form
-    print("Received data:", data)
     job = get_job_from_db(id)
     add_application_to_db(id, data)
     return render_template('application_submitted.html', application=data, job=job)
