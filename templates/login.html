@@ -1,0 +1,48 @@
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <title>Login | Ptr Brightera Academy Careers</title>
+        <link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
+        {% include 'bootstrap.html' %}
+      </head>
+      <body>
+
+        {% include 'navbar.html' %}
+
+        <div class="container">
+          <div class="form-login mt-5">
+            <div class="branding-header text-center mb-4">
+              <img src="{{ url_for('static', filename='images/logo.png') }}" alt="Logo" class="logo">
+              <h2>Welcome Back</h2>
+              <button id="theme-toggle" class="btn btn-sm btn-outline-light mt-2">Toggle Theme</button>
+            </div>
+
+    <form>
+      <div class="form-group mb-3">
+            <label for="usernameOrEmail">Username</label>
+            <input type="text" class="form-control" id="usernameOrEmail" name="username_or_email" placeholder="Enter your username or email" required>
+       </div>
+
+      <div class="form-group mb-4">
+          <label for="password">Password</label>
+          <input type="password" class="form-control" id="password" name="password" placeholder="Enter your password" required>
+      </div>
+
+      <button type="submit" class="btn btn-primary w-50 d-block mx-auto">Log In</button>
+
+  </form>
+
+          </div>
+        </div>
+
+        {% include 'footer.html' %}
+
+        <script>
+          const toggleBtn = document.getElementById('theme-toggle');
+          toggleBtn.addEventListener('click', () => {
+            document.body.classList.toggle('dark-mode');
+            document.body.classList.toggle('light-mode');
+          });
+        </script>
+      </body>
+      </html>

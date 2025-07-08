@@ -4,7 +4,7 @@ from database import get_jobs_from_db, get_job_from_db, add_application_to_db
 app = Flask(__name__)
            
 @app.route("/")
-def hello_world():
+def home_page():
     JOBS = get_jobs_from_db()
     return render_template('home.html', jobs=JOBS)
     
@@ -26,5 +26,13 @@ def apply_to_job(id):
 def contact_us():
     return render_template('contact_us.html')
 
+@app.route("/signup")
+def signup():
+    return render_template('signup.html')
+
+@app.route("/login")
+def login():
+    return render_template('login.html')
+    
 if __name__ == "__main__":
     app.run(host='0.0.0.0', debug=True)
