@@ -30,6 +30,18 @@ def contact_us():
 def signup():
     return render_template('signup.html')
 
+@app.route("/about_us")
+def about_us():
+    return render_template('about_us.html')
+
+@app.route("/services")
+def services():
+    return render_template('services.html')
+
+@app.route("/faqs")
+def FAQs():
+    return render_template('faqs.html')
+    
 @app.route("/login")
 def login():
     return render_template('login.html')
