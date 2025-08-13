@@ -11,7 +11,7 @@
   <div class="container mt-5">
 
     <header class="text-center mb-5">
-      <h1 class="display-5">Ptr Brightera Academy</h1>
+      <h1 class="display-5">Careers at Ptr Brightera Academy</h1>
     </header>
 
     <section class="row align-items-center mb-5">
@@ -27,7 +27,7 @@
       </div>
       <div class="col-md-6 text-center">
         <img 
-          src="{{ url_for('static', filename='images/workers.jpg') }}" 
+          src="{{ url_for('static', filename='images/employees.jpg') }}" 
           alt="Team at Ptr Brightera Academy" 
           class="img-fluid rounded shadow-sm" 
           style="max-height: 320px; object-fit: cover;"
@@ -35,22 +35,19 @@
       </div>
     </section>
 
-    <section class="container py-5">
-      <h1 class="text-center mb-5">Explore Our Courses</h1>
-
-      {% if courses %}
-        <div class="row g-4">
-          {% for course in courses %}
-            <div class="col-md-6 col-lg-4">
-              {% include 'pages/courses.html' %}
-            </div>
+    <section>
+      <h2 class="text-center mb-4">Open Positions</h2>
+      <div>
+        {% if jobs %}
+          {% for job in jobs %}
+            {% include 'pages/jobitems.html' %}
           {% endfor %}
-        </div>
-      {% else %}
-        <p class="text-center text-muted">There are currently no available courses. Please check back soon.</p>
-      {% endif %}
+        {% else %}
+          <p class="text-center text-muted">There are currently no open positions. Please check back soon.</p>
+        {% endif %}
+      </div>
     </section>
-    
+
   </div>
 
   {% include 'layouts/footer.html' %}

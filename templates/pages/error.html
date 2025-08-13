@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Application Error | Ptr Brightera Academy Careers</title>
+  {% include 'bootstrap.html' %}
+</head>
+<body>
+
+  {% include 'navbar.html' %}
+
+  <div class="container mt-5">
+    <div class="text-center mb-5">
+      <h1 class="display-5">Ptr Brightera Academy Careers</h1>
+      <p class="lead">We’re sorry — something went wrong with your application.</p>
+    </div>
+
+    <div class="alert alert-danger text-center">
+      <strong>Error:</strong> {{ message }}
+    </div>
+
+    <div class="text-center mt-4">
+      <a href="{{ url_for('home_page', id=job.id) }}" class="btn btn-primary">Go Back</a>
+    </div>
+  </div>
+
+  {% include 'footer.html' %}
+
+</body>
+</html>

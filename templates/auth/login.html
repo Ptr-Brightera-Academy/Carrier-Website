@@ -3,11 +3,11 @@
       <head>
         <title>Login | Ptr Brightera Academy Careers</title>
         <link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
-        {% include 'bootstrap.html' %}
+        {% include 'components/bootstrap.html' %}
       </head>
       <body>
 
-        {% include 'navbar.html' %}
+        {% include 'layouts/navbar.html' %}
 
         <div class="container">
           <div class="form-login mt-5">
@@ -35,7 +35,7 @@
           </div>
         </div>
 
-        {% include 'footer.html' %}
+        {% include 'layouts/footer.html' %}
 
         <script>
           const toggleBtn = document.getElementById('theme-toggle');

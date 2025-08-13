@@ -54,8 +54,8 @@
         <div class="mb-3">
           <strong>Resume:</strong>
           <div>
-            <a href="{{ application.resume_url }}" target="_blank" rel="noopener">
-              View Resume
+            <a href="{{ url_for('static', filename=application.resume_url.split('static/')[-1]) }}" target="_blank" rel="noopener">
+              View Resume (PDF)
             </a>
           </div>
         </div>
