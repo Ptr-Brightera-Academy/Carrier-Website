@@ -24,6 +24,28 @@ def home_page():
     courses = get_courses_from_db()
     return render_template('home.html', courses=courses)
 
+@app.route("/course/<string:title>")
+def course_details(title):
+    courses = get_courses_from_db()
+    course = next((c for c in courses if c['title'] == title), None)
+
+    if not course:
+        abort(404)
+
+    return render_template('pages/courses/course_details.html', course=course)
+
+@app.route("/enroll/<string:title>")
+def enroll(title):
+    courses = get_courses_from_db()
+    course = next((c for c in courses if c['title'] == title), None)
+    if not course:
+        abort(404)
+    
+    return render_template('pages/courses/enroll.html', course=course)
+
+        
+        
+
 @app.route("/careers")
 def brightera_careers():
     JOBS = get_jobs_from_db()
@@ -72,7 +94,7 @@ def apply_to_job(id):
 
     add_application_to_db(id, application_data)
 
-    return render_template('application_submitted.html', application=application_data, job=job)
+    return render_template('pages/application_submitted.html', application=application_data, job=job)
     
 @app.route("/contact_us")
 def contact_us():

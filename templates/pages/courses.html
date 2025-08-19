@@ -1,11 +1,17 @@
 <div class="card h-100 shadow-sm">
-  <div class="card-body d-flex flex-column">
-    <h5 class="card-title">{{ course.title }}</h5>
-    <p class="card-text mb-1"><strong>Specialization:</strong> {{ course.subject }}</p>
-    <p class="card-text mb-1"><strong>Level:</strong> {{ course.level }}</p>
-    <p class="card-text mb-1"><strong>Duration:</strong> {{ course.duration or "N/A" }}</p>
-    <p class="card-text mb-1"><strong>Language:</strong> {{ course.language }}</p>
-    <p class="card-text mb-3"><strong>Price:</strong> {{ "Free" if course.price == 0 else "$" ~ course.price }}</p>
-    <a href="/course/{{ course.title }}" class="btn btn-outline-primary mt-auto">View Course</a>
-  </div>
+   <div class="card-body d-flex flex-column">
+      {% if course.thumbnail != 'default-thumbnail.jpg' %}
+      <img src="{{ course.thumbnail }}" class="card-img-top" alt="{{ course.title }}">
+      {% endif %}
+      <h5 class="card-title">{{ course.title }}</h5>
+      <p class="card-text mb-1"><strong>Specialization:</strong> {{ course.subject }}</p>
+      <p class="card-text mb-1"><strong>Level:</strong> {{ course.level }}</p>
+      <p class="card-text mb-1"><strong>Duration:</strong> {{ course.duration or "N/A" }}</p>
+      <p class="card-text mb-1"><strong>Language:</strong> {{ course.language }}</p>
+      <p class="card-text mb-3"><strong>Price:</strong> {{ "Free" if course.price == 0 else "$" ~ course.price }}</p>
+      <div class="d-flex  mt-auto gap-2">
+         <a href="{{ url_for('course_details', title=course.title) }}" class="btn btn-outline-primary">View Course</a>
+         <a href="{{url_for('enroll', title=course.title) }}" class="btn btn-success">Enroll</a>
+      </div>
+   </div>
 </div>
