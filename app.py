@@ -116,9 +116,27 @@ def services():
 def FAQs():
     return render_template('pages/faqs.html')
     
-@app.route("/login")
+@app.route("/login", methods=["GET", "POST"])
 def login():
-    return render_template('auth/login.html')
+    if request.method == "POST":
+        username_or_email = request.form.get("username_or_email")
+        password = request.form.get("password")
+
+        with engine.connect() as conn:
+            result = conn.execute(text("""
+                SELECT * FROM users 
+                WHERE email = :identifier OR username = :identifier
+            """), {"identifier": username_or_email})
+            user = result.fetchone()
+
+        if user and check_password_hash(user.password, password):
+            user_obj = User(id=user.id, username=user.username, email=user.email)
+            login_user(user_obj)
+            return redirect(url_for("dashboard"))  # Or your landing page
+        else:
+            flash("Invalid credentials", "danger")
+
+    return render_template("auth/login.html")
 
 @app.route('/applicants')
 def view_applicants():

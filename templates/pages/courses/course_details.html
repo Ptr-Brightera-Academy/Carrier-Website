@@ -1,23 +1,59 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <title>Application Error | Ptr Brightera Academy Careers</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ course.title }} | Ptr Brightera Academy Careers</title>
   {% include 'components/bootstrap.html' %}
+  <style>
+    .course-header {
+      background-color: #f8f9fa;
+      padding: 3rem 1rem;
+      border-radius: 0.5rem;
+    }
+    .info-label {
+      font-weight: 600;
+      color: #555;
+    }
+  </style>
 </head>
 <body>
 
   {% include 'layouts/navbar.html' %}
 
-<div>
-  <h1>{{ course.title }}</h1>
-  <p><strong>Specialization:</strong> {{ course.subject }}</p>
-  <p><strong>Level:</strong> {{ course.level }}</p>
-  <p><strong>Duration:</strong> {{ course.duration or "N/A" }}</p>
-</div>
+  <div class="container">
+    <!-- Course Header -->
+    <div class="course-header text-center my-5 shadow-sm">
+      <h1 class="display-5 fw-bold mb-3">{{ course.title }}</h1>
+      <div class="d-flex flex-column align-items-center">
+        <span class="badge bg-primary mb-2">{{ course.subject }}</span>
+      </div>
+    </div>
 
-</div>
+    <!-- Course Details Card -->
+    <div class="card mb-5 shadow-sm">
+      <div class="card-body">
+        <h4 class="card-title mb-4">Course Information</h4>
+        <p><span class="info-label">Title:</span> {{ course.title }}</p>
+        <p><span class="info-label">Specialization:</span> {{ course.subject }}</p>
+        <p><span class="info-label">Level:</span> {{ course.level }}</p>
+        <p><span class="info-label">Duration:</span> {{ course.duration or "N/A" }}</p>
+      </div>
+    </div>
 
-    {% include 'layouts/footer.html' %}
+    <!-- Instructor Section -->
+    <div class="text-center my-5">
+      <h2 class="mb-4">Instructor(s)</h2>
+      <div class="card mx-auto shadow-sm" style="max-width: 500px;">
+        <div class="card-body">
+          <h5 class="card-title">Instructor Name</h5>
+          <p class="card-text">{{ course.instructor_username or "N/A" }}</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% include 'layouts/footer.html' %}
 
 </body>
 </html>

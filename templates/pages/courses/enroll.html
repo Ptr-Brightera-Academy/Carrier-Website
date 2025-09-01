@@ -5,22 +5,36 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="description" content="Confirm your enrollment at Ptr Brightera Academy." />
   <title>Confirm Enrollment | Ptr Brightera Academy Careers</title>
-  
+
   {% include 'components/bootstrap.html' %}
+
+  <style>
+    .enroll-card {
+      max-width: 600px;
+      margin: 50px auto;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    }
+  </style>
 </head>
 <body>
 
   {% include 'layouts/navbar.html' %}
 
   <div class="container">
-    <div class="enroll-container text-center">
-      <h1>Enroll in {{ course.title }}</h1>
-      <p>You are about to enroll in the course "<strong>{{ course.title }}</strong>".</p>
-      <p>This course is offered by <strong>{{ course.instructor }}</strong>.</p>
-      <p>Please confirm your enrollment by clicking the button below.</p>
-      <form method="post">
-        <button type="submit" class="btn btn-success">Confirm Enrollment</button>
-      </form>
+    <div class="card enroll-card">
+      <div class="card-body text-center">
+        <h2 class="card-title mb-4">Confirm Enrollment</h2>
+        <p class="lead">You're about to enroll in:</p>
+        <h4 class="text-primary mb-3">“{{ course.title }}”</h4>
+        <p class="mb-2">Offered by: <strong>{{course.instructor_username or "N/A" }}</strong></p>
+        <p class="text-muted">Please confirm your enrollment to proceed.</p>
+        
+        <form method="post" class="mt-4">
+          <button type="submit" class="btn btn-success btn-lg px-4">
+          Confirm Enrollment
+          </button>
+        </form>
+      </div>
     </div>
   </div>
 

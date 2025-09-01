@@ -26,12 +26,21 @@ def get_jobs_from_db():
 
 def get_courses_from_db():
     with engine.connect() as conn:
-        result = conn.execute(text("SELECT * FROM courses"))
+        result = conn.execute(text("""
+            SELECT 
+                courses.*, 
+                users.username AS instructor_username
+            FROM 
+                courses
+            LEFT JOIN 
+                users ON courses.instructor_id = users.id
+        """))
+
         courses = []
         for row in result.all():
             courses.append(dict(row._mapping))
-        return courses
 
+        return courses
 
 def get_job_from_db(id):
     with engine.connect() as conn:
@@ -139,3 +148,5 @@ def get_unique_education_levels():
     with engine.connect() as conn:
         result = conn.execute(text("SELECT DISTINCT education FROM applications WHERE education IS NOT NULL AND education != ''"))
         return [row[0] for row in result]
+
+
