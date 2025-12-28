@@ -7,8 +7,16 @@ import uuid
 from io import StringIO
 import csv
 from flask import Response
+from database import engine
+from sqlalchemy import text
+from werkzeug.security import check_password_hash
+from flask import flash
+
+
 
 app = Flask(__name__)
+
+
 
 UPLOAD_FOLDER = os.path.join('static', 'resumes')
 ALLOWED_EXTENSIONS = {'pdf'}
@@ -100,9 +108,32 @@ def apply_to_job(id):
 def contact_us():
     return render_template('pages/contact_us.html')
 
-@app.route("/signup")
+@app.route("/signup", methods=["GET", "POST"])
 def signup():
-    return render_template('auth/signup.html')
+    if request.method == "POST":
+        username = request.form["username"]
+        email = request.form["email"]
+        password1 = request.form["password1"]
+        password2 = request.form["password2"]
+
+        if password1 != password2:
+            flash("Passwords do not match")
+            return redirect("/signup")
+
+        if get_user_by_email(email):
+            flash("Email already registered")
+            return redirect("/signup")
+
+        if add_user(username, email, password1):
+            flash("Account created successfully!")
+            return redirect("/login")
+
+        flash("Something went wrong. Please try again.")
+        return redirect("/signup")
+
+    return render_template("auth/signup.html")
+
+
 
 @app.route("/about_us")
 def about_us():
@@ -115,28 +146,38 @@ def services():
 @app.route("/faqs")
 def FAQs():
     return render_template('pages/faqs.html')
+
+
     
 @app.route("/login", methods=["GET", "POST"])
 def login():
+    error = None
+
     if request.method == "POST":
-        username_or_email = request.form.get("username_or_email")
+        identifier = request.form.get("username_or_email")
         password = request.form.get("password")
 
         with engine.connect() as conn:
-            result = conn.execute(text("""
-                SELECT * FROM users 
-                WHERE email = :identifier OR username = :identifier
-            """), {"identifier": username_or_email})
+            result = conn.execute(
+                text("""
+                    SELECT * FROM users 
+                    WHERE email = :identifier OR username = :identifier
+                """),
+                {"identifier": identifier}
+            )
             user = result.fetchone()
 
         if user and check_password_hash(user.password, password):
-            user_obj = User(id=user.id, username=user.username, email=user.email)
-            login_user(user_obj)
-            return redirect(url_for("dashboard"))  # Or your landing page
-        else:
-            flash("Invalid credentials", "danger")
+            login_user(User(id=user.id, username=user.username, email=user.email))
+            return redirect(url_for("dashboard"))
 
-    return render_template("auth/login.html")
+        error = "Invalid credentials"
+
+    return render_template("auth/login.html", error=error)
+
+
+
+
 
 @app.route('/applicants')
 def view_applicants():

@@ -1,5 +1,7 @@
 import os
 from sqlalchemy import create_engine, text
+from werkzeug.security import generate_password_hash, check_password_hash
+
 
 
 cert_path = os.path.join(os.path.dirname(__file__), 'certs', 'isrgrootx1.pem')
@@ -148,5 +150,35 @@ def get_unique_education_levels():
     with engine.connect() as conn:
         result = conn.execute(text("SELECT DISTINCT education FROM applications WHERE education IS NOT NULL AND education != ''"))
         return [row[0] for row in result]
+
+def add_user(username, email, password):
+    hashed_password = generate_password_hash(password)
+
+    try:
+        with engine.begin() as conn:
+            conn.execute(
+                text("""
+                    INSERT INTO users (username, email, password)
+                    VALUES (:username, :email, :password)
+                """),
+                {
+                    "username": username,
+                    "email": email,
+                    "password": hashed_password
+                }
+            )
+        return True
+    except Exception as e:
+        print("Error adding user:", e)
+        return False
+
+def get_user_by_email(email):
+    with engine.connect() as conn:
+        result = conn.execute(
+            text("SELECT * FROM users WHERE email = :email"),
+            {"email": email}
+        )
+        row = result.first()
+        return dict(row._mapping) if row else None
 
 
