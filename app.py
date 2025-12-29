@@ -10,6 +10,7 @@ from flask import Response
 from database import engine
 from sqlalchemy import text
 from werkzeug.security import check_password_hash
+from flask_login import LoginManager
 from flask_login import logout_user, login_required
 
 
@@ -17,6 +18,9 @@ from flask_login import logout_user, login_required
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY")
 
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = "login"  # type: ignore[assignment]
 
 UPLOAD_FOLDER = os.path.join('static', 'resumes')
 ALLOWED_EXTENSIONS = {'pdf'}
