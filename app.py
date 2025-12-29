@@ -1,5 +1,5 @@
-from flask import Flask, jsonify, render_template, request, redirect, send_file, url_for
-from database import get_courses_from_db, get_jobs_from_db, get_job_from_db, add_application_to_db, has_user_already_applied, get_applicants, count_applicants,get_unique_education_levels
+from flask import Flask, jsonify, render_template, request, redirect, send_file, url_for, abort, session, flash
+from database import get_courses_from_db, get_jobs_from_db, get_job_from_db, add_application_to_db, has_user_already_applied, get_applicants, count_applicants,get_unique_education_levels, get_user_by_email, add_user, get_user_by_username
 import os
 from werkzeug.utils import secure_filename
 from flask import current_app
@@ -10,12 +10,12 @@ from flask import Response
 from database import engine
 from sqlalchemy import text
 from werkzeug.security import check_password_hash
-from flask import flash
+from flask_login import logout_user, login_required
 
 
 
 app = Flask(__name__)
-
+app.secret_key = os.environ.get("FLASK_SECRET_KEY")
 
 
 UPLOAD_FOLDER = os.path.join('static', 'resumes')
@@ -52,8 +52,6 @@ def enroll(title):
     return render_template('pages/courses/enroll.html', course=course)
 
         
-        
-
 @app.route("/careers")
 def brightera_careers():
     JOBS = get_jobs_from_db()
@@ -111,28 +109,38 @@ def contact_us():
 @app.route("/signup", methods=["GET", "POST"])
 def signup():
     if request.method == "POST":
-        username = request.form["username"]
-        email = request.form["email"]
-        password1 = request.form["password1"]
-        password2 = request.form["password2"]
+        # POST
+        username = request.form.get("username")
+        email = request.form.get("email")
+        password1 = request.form.get("password1")
+        password2 = request.form.get("password2")
 
         if password1 != password2:
             flash("Passwords do not match")
-            return redirect("/signup")
+            return render_template("auth/signup.html")
+
+        if get_user_by_username(username):
+            flash("Username already taken")
+            return render_template("auth/signup.html")
 
         if get_user_by_email(email):
             flash("Email already registered")
-            return redirect("/signup")
+            return render_template("auth/signup.html")
 
         if add_user(username, email, password1):
-            flash("Account created successfully!")
-            return redirect("/login")
+            flash("Account created successfully")
+            return redirect(url_for("login"))
 
-        flash("Something went wrong. Please try again.")
-        return redirect("/signup")
+        flash("Something went wrong")
 
     return render_template("auth/signup.html")
+    
+@app.route("/dashboard")
+def dashboard():
+    if "user_id" not in session:
+        return redirect(url_for("login"))
 
+    return render_template("users/dashboard.html")
 
 
 @app.route("/about_us")
@@ -148,35 +156,78 @@ def FAQs():
     return render_template('pages/faqs.html')
 
 
-    
 @app.route("/login", methods=["GET", "POST"])
 def login():
-    error = None
+    # If already logged in, redirect away
+    if session.get("user_id"):
+        return redirect(url_for("dashboard"))
 
     if request.method == "POST":
         identifier = request.form.get("username_or_email")
         password = request.form.get("password")
 
+        if not identifier or not password:
+            flash("All fields are required")
+            return render_template("auth/login.html")
+
         with engine.connect() as conn:
             result = conn.execute(
                 text("""
-                    SELECT * FROM users 
+                    SELECT * FROM users
                     WHERE email = :identifier OR username = :identifier
                 """),
                 {"identifier": identifier}
             )
-            user = result.fetchone()
+            user = result.first()
 
-        if user and check_password_hash(user.password, password):
-            login_user(User(id=user.id, username=user.username, email=user.email))
+        if user and check_password_hash(user._mapping["password"], password):
+            session["user_id"] = user._mapping["id"]
+            session["username"] = user._mapping["username"]
+            flash("Welcome back!")
             return redirect(url_for("dashboard"))
 
-        error = "Invalid credentials"
+        flash("Invalid username/email or password")
 
-    return render_template("auth/login.html", error=error)
+    return render_template("auth/login.html")
 
+# Students Routes
+@app.route('/my_courses')
+def my_courses():
+    return render_template('users/pages/courses.html')
 
+@app.route('/my_lessons')
+def lessons():
+    return render_template('users/pages/lessons.html')
 
+@app.route('/quizes')
+def quizes():
+    return render_template('users/pages/quizes.html')
+
+@app.route('/my_certificate(s)')
+def certificates():
+    return render_template('users/pages/certificates.html')
+
+@app.route('/discussions')
+def discussions():
+    return render_template('users/pages/discussions.html')
+
+@app.route('/my_profile')
+def profile():
+    return render_template('users/pages/profile.html')
+
+@app.route('/my_progress')
+def progress():
+    return render_template('users/pages/progress.html')
+
+@app.route('/settings')
+def settings():
+    return render_template('users/pages/settings.html')
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('login'))
 
 
 @app.route('/applicants')

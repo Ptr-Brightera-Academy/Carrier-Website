@@ -1,0 +1,87 @@
+<nav id="sidebarMenu" class="col-md-3 col-lg-2 d-md-block bg-light sidebar collapse">
+  <div class="position-sticky pt-3">
+
+    <ul class="nav flex-column">
+      <li class="nav-item">
+        <a class="nav-link active" href="#">
+          <span data-feather="home"></span>
+          Dashboard
+        </a>
+      </li>
+
+      <li class="nav-item">
+        <a class="nav-link" href="{{ url_for('my_courses') }}">
+          <span data-feather="book-open"></span>
+          My Courses
+        </a>
+      </li>
+
+      <li class="nav-item">
+        <a class="nav-link" href="{{url_for('lessons')}}">
+          <span data-feather="play-circle"></span>
+          Lessons
+        </a>
+      </li>
+
+      <li class="nav-item">
+        <a class="nav-link" href="{{url_for('quizes')}}">
+          <span data-feather="edit"></span>
+          Quizzes
+        </a>
+      </li>
+
+      <li class="nav-item">
+        <a class="nav-link" href="{{url_for('progress')}}">
+          <span data-feather="bar-chart-2"></span>
+          Progress
+        </a>
+      </li>
+
+      <li class="nav-item">
+        <a class="nav-link" href="{{url_for('certificates')}}">
+          <span data-feather="award"></span>
+          Certificates
+        </a>
+      </li>
+
+      <li class="nav-item">
+        <a class="nav-link" href="{{url_for('discussions')}}">
+          <span data-feather="message-circle"></span>
+          Discussions
+        </a>
+      </li>
+    </ul>
+
+    <h6 class="sidebar-heading px-3 mt-4 mb-1 text-muted">
+      Account
+    </h6>
+
+    <ul class="nav flex-column mb-2">
+      <li class="nav-item">
+        <a class="nav-link" href="{{url_for('profile')}}">
+          <span data-feather="user"></span>
+          Profile
+        </a>
+      </li>
+
+      <li class="nav-item">
+        <a class="nav-link" href="{{url_for('settings')}}">
+          <span data-feather="settings"></span>
+          Settings
+        </a>
+      </li>
+    </ul>
+
+    <hr>
+
+    <ul class="nav flex-column mb-3">
+      <li class="nav-item">
+        <a class="nav-link text-danger" href="/logout">
+          <span data-feather="log-out"></span>
+          Sign Out
+        </a>
+      </li>
+    </ul>
+
+  </div>
+</nav>

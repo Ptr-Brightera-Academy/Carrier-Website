@@ -151,25 +151,26 @@ def get_unique_education_levels():
         result = conn.execute(text("SELECT DISTINCT education FROM applications WHERE education IS NOT NULL AND education != ''"))
         return [row[0] for row in result]
 
-def add_user(username, email, password):
+def add_user(username, email, password, role="student"):
     hashed_password = generate_password_hash(password)
 
     try:
         with engine.begin() as conn:
             conn.execute(
                 text("""
-                    INSERT INTO users (username, email, password)
-                    VALUES (:username, :email, :password)
+                    INSERT INTO users (username, email, password, role)
+                    VALUES (:username, :email, :password, :role)
                 """),
                 {
                     "username": username,
                     "email": email,
-                    "password": hashed_password
+                    "password": hashed_password,
+                    "role": role
                 }
             )
         return True
     except Exception as e:
-        print("Error adding user:", e)
+        print("User creation error:", e)
         return False
 
 def get_user_by_email(email):
@@ -181,4 +182,11 @@ def get_user_by_email(email):
         row = result.first()
         return dict(row._mapping) if row else None
 
+def get_user_by_username(username):
+    with engine.connect() as conn:
+        result = conn.execute(
+            text("SELECT id FROM users WHERE username = :username"),
+            {"username": username}
+        )
+        return result.first() is not None
 
