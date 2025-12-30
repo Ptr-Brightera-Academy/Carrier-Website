@@ -1,5 +1,5 @@
 from flask import Flask, jsonify, render_template, request, redirect, send_file, url_for, abort, session, flash, current_app
-from database import get_courses_from_db, get_jobs_from_db, get_job_from_db, add_application_to_db, has_user_already_applied, get_applicants, count_applicants,get_unique_education_levels, get_user_by_email, add_user, get_user_by_username, engine, enroll_student
+from database import get_courses_from_db, get_jobs_from_db, get_job_from_db, add_application_to_db, has_user_already_applied, get_applicants, count_applicants,get_unique_education_levels, get_user_by_email, add_user, get_user_by_username, engine
 import os
 from werkzeug.utils import secure_filename
 import uuid
@@ -69,29 +69,13 @@ def course_details(title):
         abort(404)
     return render_template('pages/courses/course_details.html', course=course)
 
-@app.route("/enroll/<string:title>", methods=["GET", "POST"])
-@login_required
+@app.route("/enroll/<string:title>")
 def enroll(title):
-    # Get course by title
     courses = get_courses_from_db()
     course = next((c for c in courses if c['title'] == title), None)
     if not course:
         abort(404)
-
-    if request.method == "POST":
-        user_id = current_user.id
-        success = enroll_student(course['id'], user_id)
-
-        if success:
-            flash(f"You have successfully enrolled in {course['title']}!", "success")
-        else:
-            flash("You are already enrolled in this course.", "warning")
-
-        return redirect(url_for("dashboard"))
-
-    # GET request → show confirmation page
     return render_template('pages/courses/enroll.html', course=course)
-
 
 @app.route("/careers")
 def brightera_careers():
