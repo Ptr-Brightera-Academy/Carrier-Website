@@ -190,3 +190,28 @@ def get_user_by_username(username):
         )
         return result.first() is not None
 
+def enroll_student(course_id: int, user_id: int) -> bool:
+    """
+    Enroll a student into a course.
+    Returns True if successful, False if the student is already enrolled.
+    """
+    with engine.connect() as conn:
+        # Check if already enrolled
+        existing = conn.execute(
+            text("SELECT * FROM enrollments WHERE course_id = :course_id AND user_id = :user_id"),
+            {"course_id": course_id, "user_id": user_id}
+        ).first()
+
+        if existing:
+            return False  # Already enrolled
+
+        # Insert enrollment
+        conn.execute(
+            text("""
+                INSERT INTO enrollments (course_id, user_id)
+                VALUES (:course_id, :user_id)
+            """),
+            {"course_id": course_id, "user_id": user_id}
+        )
+        conn.commit()
+        return True

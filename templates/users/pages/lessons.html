@@ -4,9 +4,17 @@
 
 {% block content %}
   <h1 class="h2 mt-3">My Lessons</h1>
-  <canvas id="myChart" class="my-4 w-100"></canvas>
-{% endblock %}
 
-{% block scripts %}
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@2.9.4/dist/Chart.min.js"></script>
+  {% if lessons %}
+    <div class="list-group mt-4">
+      {% for lesson in lessons %}
+        <div class="list-group-item mb-3">
+          <h3>{{ lesson.title }}</h3>
+          <div>{{ lesson.content | safe }}</div>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p>No lessons available yet.</p>
+  {% endif %}
 {% endblock %}
