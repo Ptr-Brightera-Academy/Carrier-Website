@@ -18,7 +18,7 @@ app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-secret-key")
 # ---------------------------
 login_manager = LoginManager()
 login_manager.init_app(app)
-login_manager.login_view = "login"
+login_manager.login_view = "login"  # type: ignore[assignment]
 
 # ---------------------------
 # FILE UPLOAD CONFIG
