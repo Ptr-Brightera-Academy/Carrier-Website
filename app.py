@@ -1,5 +1,5 @@
 from flask import Flask, jsonify, render_template, request, redirect, send_file, url_for, abort, session, flash, current_app
-from database import get_courses_from_db, get_jobs_from_db, get_job_from_db, add_application_to_db, has_user_already_applied, get_applicants, count_applicants,get_unique_education_levels, get_user_by_email, add_user, get_user_by_username, engine, enroll_student
+from database import get_courses_from_db, get_jobs_from_db, get_job_from_db, add_application_to_db, has_user_already_applied, get_applicants, count_applicants,get_unique_education_levels, get_user_by_email, add_user, get_user_by_username, engine, enroll_student, is_user_enrolled, get_enrolled_courses, get_quiz_courses, get_user_progress
 import os
 from werkzeug.utils import secure_filename
 import uuid
@@ -69,28 +69,59 @@ def course_details(title):
         abort(404)
     return render_template('pages/courses/course_details.html', course=course)
 
-@app.route("/enroll/<string:title>", methods=["GET", "POST"])
-@login_required
+@app.route("/enroll/<string:title>")
 def enroll(title):
-    # Get course by title
     courses = get_courses_from_db()
+
+    course = next((c for c in courses if c['title'] == title), None)
+
+    if not course:
+        abort(404)
+
+    return render_template('pages/courses/enroll.html', course=course)
+
+@app.route("/confirm/enroll/<string:title>")
+@login_required
+def confirm_enroll(title):
+    courses = get_courses_from_db()
+    course = next((c for c in courses if c['title'] == title), None)
+
+    if not course:
+        abort(404)
+
+    user_id = current_user.id
+    success = enroll_student(course['id'], user_id)
+
+    if success:
+        flash(f"You have successfully enrolled in {course['title']}!", "success")
+    else:
+        flash("You are already enrolled in this course.", "warning")
+
+    return redirect(url_for("already_enrolled", title=title))
+
+
+@app.route("/enrolled/<string:title>")
+def already_enrolled(title):
+    # Get the course
+    courses = get_courses_from_db() 
     course = next((c for c in courses if c['title'] == title), None)
     if not course:
         abort(404)
 
-    if request.method == "POST":
-        user_id = current_user.id
-        success = enroll_student(course['id'], user_id)
+    # Get current user
+    user_id = session.get("user_id")
+    if not user_id:
+        # Optionally redirect to login if no user
+        return redirect(url_for("login"))
 
-        if success:
-            flash(f"You have successfully enrolled in {course['title']}!", "success")
-        else:
-            flash("You are already enrolled in this course.", "warning")
+    # Check if user is already enrolled
+    if not is_user_enrolled(user_id, course['id']):
+        # If not enrolled, maybe redirect to enrollment page
+        return redirect(url_for("enroll", title=title))
 
-        return redirect(url_for("dashboard"))
+    # Render page saying user is already enrolled
+    return render_template('pages/courses/already_enrolled.html', course=course)
 
-    # GET request → show confirmation page
-    return render_template('pages/courses/enroll.html', course=course)
 
 
 @app.route("/careers")
@@ -203,12 +234,22 @@ def login():
             user = result.first()
 
         if user and check_password_hash(user._mapping["password"], password):
-            user_obj = User(user._mapping["id"], user._mapping["username"], user._mapping["email"])
+            user_obj = User(
+                user._mapping["id"],
+                user._mapping["username"],
+                user._mapping["email"]
+            )
+
             login_user(user_obj)
-            return redirect(url_for("dashboard"))
+
+            # 👇 THIS IS THE FIX
+            next_page = request.args.get("next")
+            return redirect(next_page or url_for("dashboard"))
 
         flash("Invalid username/email or password")
+
     return render_template("auth/login.html")
+
 
 @app.route("/logout")
 @login_required
@@ -223,31 +264,229 @@ def logout():
 @app.route("/dashboard")
 @login_required
 def dashboard():
-    return render_template("users/dashboard.html")
+    user = current_user
+
+    # Get courses and progress for this user
+    courses_progress = get_user_progress(user.id)
+
+    total_courses = len(courses_progress)
+    total_lessons_completed = sum(c['completed_lessons'] for c in courses_progress)
+    total_lessons = sum(c['total_lessons'] for c in courses_progress)
+    total_certificates = 0  # You can update this if you track certificates in another table
+
+    return render_template(
+        "users/dashboard.html",
+        user=user,
+        courses_progress=courses_progress,
+        total_courses=total_courses,
+        total_lessons_completed=total_lessons_completed,
+        total_lessons=total_lessons,
+        total_certificates=total_certificates
+    )
+
 
 @app.route('/my_courses')
 @login_required
 def my_courses():
-    return render_template('users/pages/courses.html')
+    courses = get_enrolled_courses(current_user.id)
+    return render_template('users/pages/courses.html',courses=courses)
 
-@app.route('/my_lessons')
+
+@app.route('/lessons/<course_slug>/<lesson_slug>')
 @login_required
-def lessons():
-    # Fetch lessons from the database
-    with engine.connect() as conn:
-        result = conn.execute(text("""
-            SELECT * FROM course_lessons
-            ORDER BY lesson_order ASC
-        """))
-        lessons = result.fetchall()
+def lesson_page(course_slug, lesson_slug):
 
-    # Pass lessons to the template
-    return render_template('users/pages/lessons.html', lessons=lessons)
+    with engine.connect() as conn:
+
+        # Get course
+        course = conn.execute(
+            text("SELECT * FROM courses WHERE slug = :slug"),
+            {"slug": course_slug}
+        ).first()
+
+        if not course:
+            abort(404)
+
+        # Get ALL lessons (for sidebar)
+        lessons = conn.execute(
+            text("""
+                SELECT *
+                FROM course_lessons
+                WHERE course_id = :course_id
+                ORDER BY lesson_order ASC
+            """),
+            {"course_id": course._mapping["id"]}
+        ).fetchall()
+
+        # Get CURRENT lesson
+        lesson = conn.execute(
+            text("""
+                SELECT *
+                FROM course_lessons
+                WHERE slug = :slug AND course_id = :course_id
+            """),
+            {
+                "slug": lesson_slug,
+                "course_id": course._mapping["id"]
+            }
+        ).first()
+
+        if not lesson:
+            abort(404)
+
+    # Find previous & next lesson
+    lesson_ids = [l._mapping["id"] for l in lessons]
+    index = lesson_ids.index(lesson._mapping["id"])
+
+    prev_lesson = lessons[index - 1] if index > 0 else None
+    next_lesson = lessons[index + 1] if index < len(lessons) - 1 else None
+
+    return render_template(
+        "users/pages/lessons.html",
+        course=course,
+        lessons=lessons,     
+        lesson=lesson,
+        prev_lesson=prev_lesson,
+        next_lesson=next_lesson
+    )
+
+@app.route('/lessons/<course_slug>')
+@login_required
+def lessons(course_slug):
+    with engine.connect() as conn:
+        course = conn.execute(
+            text("SELECT * FROM courses WHERE slug = :slug"),
+            {"slug": course_slug}
+        ).first()
+
+        if not course:
+            abort(404)
+
+        first_lesson = conn.execute(
+            text("""
+                SELECT slug
+                FROM course_lessons
+                WHERE course_id = :course_id
+                ORDER BY lesson_order ASC
+                LIMIT 1
+            """),
+            {"course_id": course._mapping["id"]}
+        ).first()
+
+    if not first_lesson:
+        return render_template(
+            "users/pages/no_lessons.html",
+            course=course
+        )
+
+    return redirect(
+        url_for(
+            "lesson_page",
+            course_slug=course.slug,
+            lesson_slug=first_lesson.slug
+        )
+    )
 
 @app.route('/quizes')
 @login_required
 def quizes():
-    return render_template('users/pages/quizes.html')
+    courses = get_quiz_courses(current_user.id)
+    return render_template(
+        'users/pages/quizes.html',
+        courses=courses
+    )
+
+@app.route("/quiz/<int:attempt_id>/page/<int:page>", methods=["GET", "POST"])
+@login_required
+def quiz_page(attempt_id, page):
+    per_page = 3
+    with engine.connect() as conn:
+        # Get the quiz id from attempt
+        attempt = conn.execute(text("""
+            SELECT * FROM quiz_attempts WHERE id = :attempt_id
+        """), {"attempt_id": attempt_id}).first()
+        if not attempt:
+            abort(404)
+
+        quiz_id = attempt._mapping["quiz_id"]
+
+        # Handle POST (answers submission)
+        if request.method == "POST":
+            for key, value in request.form.items():
+                if key.startswith("question_"):
+                    question_id = int(key.split("_")[1])
+                    selected = value.upper()
+                    correct = conn.execute(text("""
+                        SELECT correct_option FROM quiz_questions WHERE id = :qid
+                    """), {"qid": question_id}).scalar()
+                    conn.execute(text("""
+                        INSERT INTO quiz_answers (attempt_id, question_id, selected_option, is_correct)
+                        VALUES (:attempt_id, :question_id, :selected_option, :is_correct)
+                    """), {
+                        "attempt_id": attempt_id,
+                        "question_id": question_id,
+                        "selected_option": selected,
+                        "is_correct": selected == correct
+                    })
+
+            # Next page
+            return redirect(url_for("quiz_page", attempt_id=attempt_id, page=page + 1))
+
+        # GET: fetch questions for this page
+        questions = conn.execute(text("""
+            SELECT * FROM quiz_questions
+            WHERE quiz_id = :quiz_id
+            ORDER BY id ASC
+            LIMIT :limit OFFSET :offset
+        """), {"quiz_id": quiz_id, "limit": per_page, "offset": (page-1)*per_page}).fetchall()
+
+    return render_template("users/pages/quiz_page.html", questions=questions, attempt_id=attempt_id, page=page)
+
+
+
+
+@app.route("/quiz/<int:quiz_id>/start")
+@login_required
+def start_quiz(quiz_id):
+    user_id = current_user.id
+
+    # Create a quiz attempt
+    with engine.connect() as conn:
+        result = conn.execute(text("""
+            INSERT INTO quiz_attempts (user_id, quiz_id)
+            VALUES (:user_id, :quiz_id)
+        """), {"user_id": user_id, "quiz_id": quiz_id})
+        attempt_id = conn.execute(text("SELECT LAST_INSERT_ID()")).scalar()
+
+    return redirect(url_for("quiz_page", attempt_id=attempt_id, page=1))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+@app.route('/quiz/<int:quiz_id>')
+@login_required
+def quiz_intro(quiz_id):
+    # Later: load questions, timer, attempts
+    return render_template('users/pages/start_quiz.html')
+
 
 @app.route('/my_certificate(s)')
 @login_required
@@ -267,7 +506,49 @@ def profile():
 @app.route('/my_progress')
 @login_required
 def progress():
-    return render_template('users/pages/progress.html')
+    with engine.connect() as conn:
+        rows = conn.execute(text("""
+            SELECT 
+                c.title,
+                COUNT(lp.lesson_id) AS completed,
+                (SELECT COUNT(*) FROM course_lessons WHERE course_id = c.id) AS total
+            FROM courses c
+            JOIN enrollments e ON e.course_id = c.id
+            LEFT JOIN lesson_progress lp 
+              ON lp.course_id = c.id 
+              AND lp.user_id = :user_id 
+              AND lp.completed = 1
+            WHERE e.user_id = :user_id
+            GROUP BY c.id
+        """), {"user_id": current_user.id}).fetchall()
+
+    return render_template("users/pages/progress.html", rows=rows)
+
+
+
+@app.route('/complete_lesson', methods=['POST'])
+@login_required
+def complete_lesson():
+    data = request.get_json()
+    lesson_id = data['lesson_id']
+    course_id = data['course_id']
+
+    with engine.begin() as conn:
+        conn.execute(text("""
+            INSERT INTO lesson_progress (user_id, course_id, lesson_id, completed, completed_at)
+            VALUES (:user_id, :course_id, :lesson_id, 1, NOW())
+            ON DUPLICATE KEY UPDATE completed = 1, completed_at = NOW()
+        """), {
+            "user_id": current_user.id,
+            "course_id": course_id,
+            "lesson_id": lesson_id
+        })
+
+    return {"status": "ok"}
+
+
+
+
 
 @app.route('/settings')
 @login_required

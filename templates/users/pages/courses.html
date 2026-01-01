@@ -3,10 +3,48 @@
 {% block title %}My Courses | Ptr Brightera Academy{% endblock %}
 
 {% block content %}
-  <h1 class="h2 mt-3">My Courses</h1>
-  <canvas id="myChart" class="my-4 w-100"></canvas>
-{% endblock %}
 
-{% block scripts %}
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@2.9.4/dist/Chart.min.js"></script>
+  <!-- Page Header -->
+  <div class="mt-4 mb-5 text-center">
+    <h1 class="h2 fw-bold">My Courses</h1>
+    <p class="text-muted mt-2">
+      Soft-click on any course below to start learning or resume your progress 📘
+    </p>
+  </div>
+
+  {% if courses %}
+    <div class="row">
+
+      {% for course in courses %}
+        <div class="col-md-4 mb-4">
+          <a href="{{ url_for('lessons', course_slug=course.slug) }}"
+             class="text-decoration-none text-dark">
+
+            <div class="card h-100 shadow-sm course-card">
+              <div class="card-body">
+                <h5 class="card-title fw-bold">
+                  {{ course.title }}
+                </h5>
+
+                <p class="card-text text-muted small">
+                  {{ course.subject or "General" }}
+                </p>
+
+                <!-- <span class="badge bg-primary mt-2">
+                  Continue Learning →
+                </span> -->
+              </div>
+            </div>
+
+          </a>
+        </div>
+      {% endfor %}
+
+    </div>
+  {% else %}
+    <div class="alert alert-info text-center">
+      You are not enrolled in any courses yet.
+    </div>
+  {% endif %}
+
 {% endblock %}

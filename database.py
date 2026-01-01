@@ -215,3 +215,87 @@ def enroll_student(course_id: int, user_id: int) -> bool:
         )
         conn.commit()
         return True
+
+def is_user_enrolled(user_id, course_id):
+    """
+    Returns True if the user is already enrolled in the course.
+    """
+    with engine.connect() as conn:
+        result = conn.execute(
+            text("SELECT * FROM enrollments WHERE user_id = :user_id AND course_id = :course_id"),
+            {"user_id": user_id, "course_id": course_id}
+        ).first()
+        return result is not None
+
+def get_enrolled_courses(user_id):
+    query = text("""
+        SELECT 
+            c.id,
+            c.title,
+            c.slug,
+            c.subject,
+            c.level,
+            c.duration,
+            c.thumbnail
+        FROM enrollments e
+        JOIN courses c ON e.course_id = c.id
+        WHERE e.user_id = :user_id
+        ORDER BY e.created_at DESC
+    """)
+
+    with engine.connect() as conn:
+        result = conn.execute(query, {"user_id": user_id})
+        courses = [dict(row._mapping) for row in result]
+
+    return courses
+
+
+def get_quiz_courses(user_id):
+    with engine.connect() as conn:
+        result = conn.execute(text("""
+            SELECT
+                c.id,
+                c.title,
+                c.slug,
+                q.id AS quiz_id,
+                q.title AS quiz_title,
+                IFNULL(
+                    ROUND(
+                        (COUNT(lp.lesson_id) /
+                        (SELECT COUNT(*) FROM course_lessons WHERE course_id = c.id)) * 100
+                    ), 0
+                ) AS progress
+            FROM enrollments e
+            JOIN courses c ON e.course_id = c.id
+            LEFT JOIN quizzes q ON q.course_id = c.id
+            LEFT JOIN lesson_progress lp
+                ON lp.course_id = c.id
+                AND lp.user_id = e.user_id
+                AND lp.completed = 1
+            WHERE e.user_id = :user_id
+            GROUP BY c.id, q.id
+        """), {"user_id": user_id})
+
+        return result.mappings().all()
+
+def get_user_progress(user_id):
+    """
+    Returns a list of courses with total lessons and completed lessons per course.
+    """
+    with engine.connect() as conn:
+        query = text("""
+            SELECT 
+                c.id AS course_id,
+                c.title AS course_title,
+                COUNT(cl.id) AS total_lessons,
+                COUNT(lp.lesson_id) AS completed_lessons
+            FROM enrollments e
+            JOIN courses c ON e.course_id = c.id
+            LEFT JOIN course_lessons cl ON cl.course_id = c.id
+            LEFT JOIN lesson_progress lp 
+                ON lp.lesson_id = cl.id AND lp.user_id = e.user_id AND lp.completed = 1
+            WHERE e.user_id = :user_id
+            GROUP BY c.id
+        """)
+        result = conn.execute(query, {"user_id": user_id})
+        return result.mappings().all()

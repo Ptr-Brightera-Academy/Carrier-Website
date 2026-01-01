@@ -1,12 +1,47 @@
 {% extends "users/base.html" %}
 
-{% block title %}Quizes | Ptr Brightera Academy{% endblock %}
+{% block title %}Quizzes | Ptr Brightera Academy{% endblock %}
 
 {% block content %}
-  <h1 class="h2 mt-3">Quizes</h1>
-  <canvas id="myChart" class="my-4 w-100"></canvas>
-{% endblock %}
+<div class="mt-4 text-center">
+  <h1 class="h2 fw-bold">My Quizzes</h1>
+  <p class="text-muted">
+    Complete your course to unlock the quiz 🎓
+  </p>
+</div>
 
-{% block scripts %}
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@2.9.4/dist/Chart.min.js"></script>
+<div class="row mt-4">
+  {% for course in courses %}
+    <div class="col-md-4 mb-4">
+      <div class="card h-100 shadow-sm">
+
+        <div class="card-body">
+          <h5 class="fw-bold">{{ course.title }}</h5>
+
+          <p class="text-muted small">
+            Progress: {{ course.progress }}%
+          </p>
+
+          {% if course.quiz_id %}
+            {% if course.progress == 100 %}
+              <a href="{{ url_for('start_quiz', quiz_id=course.quiz_id) }}"
+                 class="btn btn-success w-100">
+                Take Quiz
+              </a>
+            {% else %}
+              <button class="btn btn-secondary w-100" disabled>
+                Quiz Locked
+              </button>
+            {% endif %}
+          {% else %}
+            <button class="btn btn-outline-secondary w-100" disabled>
+              No Quiz Available
+            </button>
+          {% endif %}
+        </div>
+
+      </div>
+    </div>
+  {% endfor %}
+</div>
 {% endblock %}

@@ -29,11 +29,12 @@
         <p class="mb-2">Offered by: <strong>{{course.instructor_username or "N/A" }}</strong></p>
         <p class="text-muted">Please confirm your enrollment to proceed.</p>
         
-        <form method="post" class="mt-4">
-          <button type="submit" class="btn btn-success btn-lg px-4">
-          Confirm Enrollment
-          </button>
-        </form>
+        <div class="mt-4">
+          <a href="{{ url_for('confirm_enroll', title=course.title) }}"
+             class="btn btn-success btn-lg px-4">
+            Confirm Enrollment
+          </a>
+        </div>
       </div>
     </div>
   </div>

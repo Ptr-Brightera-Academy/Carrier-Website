@@ -3,10 +3,19 @@
 {% block title %}My Progress | Ptr Brightera Academy{% endblock %}
 
 {% block content %}
-  <h1 class="h2 mt-3">My Progress</h1>
-  <canvas id="myChart" class="my-4 w-100"></canvas>
-{% endblock %}
+<h1 class="h2 mt-3">My Progress</h1>
 
-{% block scripts %}
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@2.9.4/dist/Chart.min.js"></script>
+<ul class="list-group mt-4">
+  {% for row in rows %}
+    {% set percent = (row.completed / row.total * 100) if row.total > 0 else 0 %}
+    <li class="list-group-item">
+      <strong>{{ row.title }}</strong>
+      <div class="progress mt-2">
+        <div class="progress-bar" style="width: {{ percent }}%">
+          {{ percent|round }}%
+        </div>
+      </div>
+    </li>
+  {% endfor %}
+</ul>
 {% endblock %}

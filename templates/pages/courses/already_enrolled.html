@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Enrolled | {{ course.title }} | Ptr Brightera Academy</title>
+
+    {% include 'components/bootstrap.html' %}
+
+    <style>
+        .course-header {
+            background-color: #f8f9fa;
+        }
+
+        .info-label {
+            font-weight: 600;
+            color: #555;
+        }
+
+        .enrolled-badge {
+            font-size: 1.1rem;
+            padding: 0.6rem 1.2rem;
+        }
+    </style>
+</head>
+<body>
+
+{% include 'layouts/navbar.html' %}
+
+<div class="container">
+
+    <!-- Enrollment Success Card -->
+    <div class="course-header card text-center shadow-sm mt-5 mx-auto" style="max-width: 600px;">
+        <div class="card-body py-5">
+
+            <div class="mb-3">
+                <span class="badge bg-success px-3 py-2">
+                    ✅ Enrollment Successful
+                </span>
+            </div>
+
+            <h3 class="fw-bold mt-3">{{ course.title }}</h3>
+
+            <span class="badge bg-primary mt-3">{{ course.subject }}</span>
+
+            <p class="text-muted mt-2">
+                You are now enrolled in this course.
+            </p>
+
+            <div class="mt-4">
+                <a href="{{ url_for('dashboard') }}" class="btn btn-primary btn-lg me-2">
+                    Start Learning
+                </a>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Instructor Section -->
+    <div class="text-center my-5">
+        <h2 class="mb-4">Instructor</h2>
+
+        <div class="card mx-auto shadow-sm" style="max-width: 500px;">
+            <div class="card-body">
+                <h5 class="card-title">
+                    {{ course.instructor_username or "N/A" }}
+                </h5>
+
+                <p class="card-text text-muted">
+                    Your instructor will guide you step by step through this course.
+                </p>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+{% include 'layouts/footer.html' %}
+
+</body>
+</html>

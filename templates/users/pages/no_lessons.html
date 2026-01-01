@@ -1,0 +1,34 @@
+{% extends "users/base.html" %}
+
+{% block title %}No Lessons Yet | {{ course.title }}{% endblock %}
+
+{% block content %}
+
+<div class="container mt-5">
+
+  <div class="card shadow-sm text-center mx-auto" style="max-width: 600px;">
+    <div class="card-body p-5">
+
+      <div class="mb-4">
+        <span class="display-4">📭</span>
+      </div>
+
+      <h3 class="fw-bold mb-3">
+        No lessons available yet
+      </h3>
+
+      <p class="text-muted mb-4">
+        Lessons for <strong>{{ course.title }}</strong> haven’t been published yet.
+        Please check back later — we’re preparing great content for you.
+      </p>
+
+      <a href="{{ url_for('my_courses') }}" class="btn btn-primary px-4">
+        Back
+      </a>
+
+    </div>
+  </div>
+
+</div>
+
+{% endblock %}
