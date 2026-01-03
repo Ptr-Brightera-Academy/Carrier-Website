@@ -317,30 +317,61 @@ def get_next_questions(quiz_id, user_id, limit=3):
             LIMIT :lim
         """), {"qid": quiz_id, "uid": user_id, "lim": limit}).fetchall()
 
-def save_answers(form, user_id):
+
+def get_or_create_attempt(conn, user_id, quiz_id):
+    
+    attempt = conn.execute(text("""
+        SELECT id FROM quiz_attempts
+        WHERE user_id=:uid AND quiz_id=:qid AND completed=0
+    """), {
+        "uid": user_id,
+        "qid": quiz_id
+    }).first()
+    
+    if attempt:
+        return attempt.id
+    
+    result = conn.execute(text("""
+        INSERT INTO quiz_attempts (user_id, quiz_id, completed)
+        VALUES (:uid, :qid, 0)
+    """), {
+        "uid": user_id,
+        "qid": quiz_id
+    })
+    
+    return result.lastrowid
+    
+
+
+
+def save_answers(form, user_id, quiz_id):
+
     with engine.connect() as conn:
 
-        attempt = conn.execute(text("""
-            SELECT * FROM quiz_attempts
-            WHERE user_id = :uid AND completed = 0
-        """), {"uid": user_id}).first()
+        attempt_id = get_or_create_attempt(conn, user_id, quiz_id)
 
         for key, value in form.items():
+            if not key.startswith("q"):
+                continue
+
             qid = int(key.replace("q", ""))
 
             correct = conn.execute(
-                text("SELECT correct_option FROM quiz_questions WHERE id = :id"),
+                text("SELECT correct_option FROM quiz_questions WHERE id=:id"),
                 {"id": qid}
             ).scalar()
 
             conn.execute(text("""
-                INSERT INTO quiz_answers (attempt_id, question_id, selected_option, is_correct)
+                INSERT INTO quiz_answers
+                (attempt_id, question_id, selected_option, is_correct)
                 VALUES (:aid, :qid, :sel, :ok)
             """), {
-                "aid": attempt.id,
+                "aid": attempt_id,
                 "qid": qid,
                 "sel": value,
                 "ok": value == correct
             })
 
         conn.commit()
+
+

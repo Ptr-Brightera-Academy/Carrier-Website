@@ -1,0 +1,31 @@
+{% extends "users/base.html" %}
+
+{% block content %}
+
+<div class="container mt-5">
+  <div class="card shadow-sm">
+    <div class="card-body text-center">
+
+      <h2 class="mb-3">{{ quiz.title }} – Results</h2>
+
+      <h1 class="display-4 fw-bold text-success">
+        {{ score }}%
+      </h1>
+
+      <hr>
+
+      <p>Total Questions: <strong>{{ total_questions }}</strong></p>
+      <p>Correct: <strong class="text-success">{{ correct }}</strong></p>
+      <p>Wrong: <strong class="text-danger">{{ wrong }}</strong></p>
+
+      <div class="mt-4">
+        <a href="{{ url_for('quizes') }}" class="btn btn-primary">
+          Back to Quizzes
+        </a>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+{% endblock %}
