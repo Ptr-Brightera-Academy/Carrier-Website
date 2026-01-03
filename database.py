@@ -299,3 +299,48 @@ def get_user_progress(user_id):
         """)
         result = conn.execute(query, {"user_id": user_id})
         return result.mappings().all()
+
+
+def get_next_questions(quiz_id, user_id, limit=3):
+    with engine.connect() as conn:
+        return conn.execute(text("""
+            SELECT q.*
+            FROM quiz_questions q
+            WHERE q.quiz_id = :qid
+            AND q.id NOT IN (
+                SELECT question_id
+                FROM quiz_answers a
+                JOIN quiz_attempts t ON a.attempt_id = t.id
+                WHERE t.user_id = :uid AND t.quiz_id = :qid
+            )
+            ORDER BY q.id
+            LIMIT :lim
+        """), {"qid": quiz_id, "uid": user_id, "lim": limit}).fetchall()
+
+def save_answers(form, user_id):
+    with engine.connect() as conn:
+
+        attempt = conn.execute(text("""
+            SELECT * FROM quiz_attempts
+            WHERE user_id = :uid AND completed = 0
+        """), {"uid": user_id}).first()
+
+        for key, value in form.items():
+            qid = int(key.replace("q", ""))
+
+            correct = conn.execute(
+                text("SELECT correct_option FROM quiz_questions WHERE id = :id"),
+                {"id": qid}
+            ).scalar()
+
+            conn.execute(text("""
+                INSERT INTO quiz_answers (attempt_id, question_id, selected_option, is_correct)
+                VALUES (:aid, :qid, :sel, :ok)
+            """), {
+                "aid": attempt.id,
+                "qid": qid,
+                "sel": value,
+                "ok": value == correct
+            })
+
+        conn.commit()

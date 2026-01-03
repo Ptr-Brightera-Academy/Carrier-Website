@@ -1,5 +1,5 @@
 from flask import Flask, jsonify, render_template, request, redirect, send_file, url_for, abort, session, flash, current_app
-from database import get_courses_from_db, get_jobs_from_db, get_job_from_db, add_application_to_db, has_user_already_applied, get_applicants, count_applicants,get_unique_education_levels, get_user_by_email, add_user, get_user_by_username, engine, enroll_student, is_user_enrolled, get_enrolled_courses, get_quiz_courses, get_user_progress
+from database import get_courses_from_db, get_jobs_from_db, get_job_from_db, add_application_to_db, has_user_already_applied, get_applicants, count_applicants,get_unique_education_levels, get_user_by_email, add_user, get_user_by_username, engine, enroll_student, is_user_enrolled, get_enrolled_courses, get_quiz_courses, get_user_progress, save_answers, get_next_questions
 import os
 from werkzeug.utils import secure_filename
 import uuid
@@ -395,97 +395,67 @@ def quizes():
         'users/pages/quizes.html',
         courses=courses
     )
+    
 
-@app.route("/quiz/<int:attempt_id>/page/<int:page>", methods=["GET", "POST"])
+
+@app.route("/quiz/<string:course_slug>/start", methods=["GET", "POST"])
 @login_required
-def quiz_page(attempt_id, page):
-    per_page = 3
+def start_quiz(course_slug):
+
     with engine.connect() as conn:
-        # Get the quiz id from attempt
-        attempt = conn.execute(text("""
-            SELECT * FROM quiz_attempts WHERE id = :attempt_id
-        """), {"attempt_id": attempt_id}).first()
-        if not attempt:
+
+        course = conn.execute(
+            text("SELECT * FROM courses WHERE slug = :slug"),
+            {"slug": course_slug}
+        ).first()
+
+        if not course:
             abort(404)
 
-        quiz_id = attempt._mapping["quiz_id"]
+        quiz = conn.execute(
+            text("SELECT * FROM quizzes WHERE course_id = :cid"),
+            {"cid": course.id}
+        ).first()
 
-        # Handle POST (answers submission)
-        if request.method == "POST":
-            for key, value in request.form.items():
-                if key.startswith("question_"):
-                    question_id = int(key.split("_")[1])
-                    selected = value.upper()
-                    correct = conn.execute(text("""
-                        SELECT correct_option FROM quiz_questions WHERE id = :qid
-                    """), {"qid": question_id}).scalar()
-                    conn.execute(text("""
-                        INSERT INTO quiz_answers (attempt_id, question_id, selected_option, is_correct)
-                        VALUES (:attempt_id, :question_id, :selected_option, :is_correct)
-                    """), {
-                        "attempt_id": attempt_id,
-                        "question_id": question_id,
-                        "selected_option": selected,
-                        "is_correct": selected == correct
-                    })
+        if not quiz:
+            abort(404)
 
-            # Next page
-            return redirect(url_for("quiz_page", attempt_id=attempt_id, page=page + 1))
+        # get or create attempt
+        attempt = conn.execute(
+            text("""
+                SELECT * FROM quiz_attempts
+                WHERE user_id = :uid AND quiz_id = :qid AND completed = 0
+            """),
+            {"uid": current_user.id, "qid": quiz.id}
+        ).first()
 
-        # GET: fetch questions for this page
-        questions = conn.execute(text("""
-            SELECT * FROM quiz_questions
-            WHERE quiz_id = :quiz_id
-            ORDER BY id ASC
-            LIMIT :limit OFFSET :offset
-        """), {"quiz_id": quiz_id, "limit": per_page, "offset": (page-1)*per_page}).fetchall()
+        if not attempt:
+            conn.execute(
+                text("""
+                    INSERT INTO quiz_attempts (user_id, quiz_id)
+                    VALUES (:uid, :qid)
+                """),
+                {"uid": current_user.id, "qid": quiz.id}
+            )
+            conn.commit()
 
-    return render_template("users/pages/quiz_page.html", questions=questions, attempt_id=attempt_id, page=page)
+    questions = get_next_questions(quiz.id, current_user.id, limit=3)
 
+    return render_template(
+        "users/pages/quiz_page.html",
+        quiz=quiz,
+        course=course,
+        questions=questions
+    )
 
-
-
-@app.route("/quiz/<int:quiz_id>/start")
+@app.route("/quiz/<string:course_slug>/submit", methods=["POST"])
 @login_required
-def start_quiz(quiz_id):
-    user_id = current_user.id
+def submit_quiz(course_slug):
 
-    # Create a quiz attempt
-    with engine.connect() as conn:
-        result = conn.execute(text("""
-            INSERT INTO quiz_attempts (user_id, quiz_id)
-            VALUES (:user_id, :quiz_id)
-        """), {"user_id": user_id, "quiz_id": quiz_id})
-        attempt_id = conn.execute(text("SELECT LAST_INSERT_ID()")).scalar()
+    save_answers(request.form, current_user.id)
 
-    return redirect(url_for("quiz_page", attempt_id=attempt_id, page=1))
+    return redirect(url_for("start_quiz", course_slug=course_slug))
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-@app.route('/quiz/<int:quiz_id>')
-@login_required
-def quiz_intro(quiz_id):
-    # Later: load questions, timer, attempts
-    return render_template('users/pages/start_quiz.html')
 
 
 @app.route('/my_certificate(s)')

@@ -24,7 +24,7 @@
 
           {% if course.quiz_id %}
             {% if course.progress == 100 %}
-              <a href="{{ url_for('start_quiz', quiz_id=course.quiz_id) }}"
+              <a href="{{ url_for('start_quiz', course_slug=course.slug) }}"
                  class="btn btn-success w-100">
                 Take Quiz
               </a>

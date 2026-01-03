@@ -1,0 +1,39 @@
+{% extends "users/base.html" %}
+
+{% block content %}
+
+<h3 class="mb-2">{{ quiz.title }}</h3>
+
+<form method="POST" action="{{ url_for('submit_quiz', course_slug=course.slug) }}">
+
+  {% for q in questions %}
+    <div class="card mt-4">
+      <div class="card-body">
+
+        <div class="fw-bold">
+          {{ loop.index }}. {{ q.question_html | safe }}
+        </div>
+
+        {% for opt in options if opt.question_id == q.id %}
+          <div class="form-check mt-2">
+            <input class="form-check-input"
+                   type="radio"
+                   name="q{{ q.id }}"
+                   value="{{ opt.option_key }}"
+                   required>
+            <label class="form-check-label">
+              {{ opt.option_html | safe }}
+            </label>
+          </div>
+        {% endfor %}
+
+      </div>
+    </div>
+  {% endfor %}
+
+
+<button class="btn btn-success">Next</button>
+
+</form>
+
+{% endblock %}
