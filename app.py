@@ -398,64 +398,42 @@ def quizes():
     
 
 
-@app.route("/quiz/<course_slug>/start", methods=["GET", "POST"])
+@app.route("/quiz/<course_slug>/start")
 @login_required
 def start_quiz(course_slug):
 
-    # Which page of questions are we on?
-    offset = int(
-        request.form.get("offset")
-        or request.args.get("offset", 0)
-    )
-
+    offset = int(request.args.get("offset", 0))
 
     with engine.connect() as conn:
 
-        # 1. Load course
         course = conn.execute(
             text("SELECT * FROM courses WHERE slug=:slug"),
             {"slug": course_slug}
         ).first()
 
-        if not course:
-            abort(404)
-
-        # 2. Load quiz
         quiz = conn.execute(
             text("SELECT * FROM quizzes WHERE course_id=:cid"),
             {"cid": course.id}
         ).first()
 
-        if not quiz:
-            abort(404)
+        questions = conn.execute(text("""
+            SELECT * FROM quiz_questions
+            WHERE quiz_id=:qid
+            ORDER BY id
+            LIMIT 3 OFFSET :off
+        """), {
+            "qid": quiz.id,
+            "off": offset
+        }).fetchall()
 
-        # 4. Load next 3 questions
-        questions = conn.execute(
-            text("""
-                SELECT * FROM quiz_questions
-                WHERE quiz_id=:qid
-                ORDER BY id ASC
-                LIMIT 3 OFFSET :off
-            """),
-            {"qid": quiz.id, "off": offset}
-        ).fetchall()
-
-        # If no more questions → go to results
         if not questions:
-            return redirect(url_for("quiz_result", course_slug=course.slug))
+            return redirect(url_for("quiz_result", course_slug=course_slug))
 
-        # 5. Load options
         ids = [q.id for q in questions]
-        placeholders = ",".join(str(i) for i in ids)
-
-        options = conn.execute(
-            text(f"""
-                SELECT * FROM quiz_options
-                WHERE question_id IN ({placeholders})
-            """)
-        ).fetchall()
-
-    next_offset = offset + 3
+        options = conn.execute(text(f"""
+            SELECT * FROM quiz_options
+            WHERE question_id IN ({','.join(map(str, ids))})
+        """)).fetchall()
 
     return render_template(
         "users/pages/quiz_page.html",
@@ -463,27 +441,28 @@ def start_quiz(course_slug):
         quiz=quiz,
         questions=questions,
         options=options,
-        offset=next_offset
+        offset=offset
     )
 
 @app.route("/quiz/<course_slug>/submit", methods=["POST"])
 @login_required
 def submit_quiz(course_slug):
 
+    offset = int(request.form.get("offset", 0))
+
     with engine.connect() as conn:
-        quiz = conn.execute(
-            text("""
-                SELECT q.*
-                FROM quizzes q
-                JOIN courses c ON q.course_id=c.id
-                WHERE c.slug=:slug
-            """),
-            {"slug": course_slug}
-        ).first()
+        quiz = conn.execute(text("""
+            SELECT q.*
+            FROM quizzes q
+            JOIN courses c ON q.course_id=c.id
+            WHERE c.slug=:slug
+        """), {"slug": course_slug}).first()
 
     save_answers(request.form, current_user.id, quiz.id)
 
-    return redirect(url_for("start_quiz", course_slug=course_slug))
+    return redirect(
+        url_for("start_quiz", course_slug=course_slug, offset=offset + 3)
+    )
 
 
 @app.route("/quiz/<course_slug>/result")
@@ -543,7 +522,7 @@ def quiz_result(course_slug):
                 WHERE attempt_id=:aid
             """),
             {"aid": attempt.id}
-        ).scalar()
+        ).scalar() or 0
 
         correct = conn.execute(
             text("""
@@ -551,7 +530,7 @@ def quiz_result(course_slug):
                 WHERE attempt_id=:aid AND is_correct=1
             """),
             {"aid": attempt.id}
-        ).scalar()
+        ).scalar() or 0
 
         wrong = answered - correct
         score = round((correct / total_questions) * 100, 2) if total_questions else 0

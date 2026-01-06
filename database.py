@@ -300,6 +300,31 @@ def get_user_progress(user_id):
         result = conn.execute(query, {"user_id": user_id})
         return result.mappings().all()
 
+def get_or_create_attempt(user_id, quiz_id):
+    with engine.connect() as conn:
+
+        attempt = conn.execute(text("""
+            SELECT * FROM quiz_attempts
+            WHERE user_id=:uid AND quiz_id=:qid AND completed=0
+        """), {
+            "uid": user_id,
+            "qid": quiz_id
+        }).first()
+
+        if attempt:
+            return attempt.id
+
+        result = conn.execute(text("""
+            INSERT INTO quiz_attempts (user_id, quiz_id, completed)
+            VALUES (:uid, :qid, 0)
+        """), {
+            "uid": user_id,
+            "qid": quiz_id
+        })
+
+        conn.commit()
+        return result.lastrowid
+
 
 def get_next_questions(quiz_id, user_id, limit=3):
     with engine.connect() as conn:
@@ -315,40 +340,27 @@ def get_next_questions(quiz_id, user_id, limit=3):
             )
             ORDER BY q.id
             LIMIT :lim
-        """), {"qid": quiz_id, "uid": user_id, "lim": limit}).fetchall()
-
-
-def get_or_create_attempt(conn, user_id, quiz_id):
-    
-    attempt = conn.execute(text("""
-        SELECT id FROM quiz_attempts
-        WHERE user_id=:uid AND quiz_id=:qid AND completed=0
-    """), {
-        "uid": user_id,
-        "qid": quiz_id
-    }).first()
-    
-    if attempt:
-        return attempt.id
-    
-    result = conn.execute(text("""
-        INSERT INTO quiz_attempts (user_id, quiz_id, completed)
-        VALUES (:uid, :qid, 0)
-    """), {
-        "uid": user_id,
-        "qid": quiz_id
-    })
-    
-    return result.lastrowid
-    
-
-
+        """), {
+            "qid": quiz_id,
+            "uid": user_id,
+            "lim": limit
+        }).fetchall()
 
 def save_answers(form, user_id, quiz_id):
-
     with engine.connect() as conn:
 
-        attempt_id = get_or_create_attempt(conn, user_id, quiz_id)
+        attempt = conn.execute(text("""
+            SELECT * FROM quiz_attempts
+            WHERE user_id = :uid
+            AND quiz_id = :qid
+            AND completed = 0
+        """), {
+            "uid": user_id,
+            "qid": quiz_id
+        }).first()
+
+        if not attempt:
+            return  # safety guard
 
         for key, value in form.items():
             if not key.startswith("q"):
@@ -366,12 +378,10 @@ def save_answers(form, user_id, quiz_id):
                 (attempt_id, question_id, selected_option, is_correct)
                 VALUES (:aid, :qid, :sel, :ok)
             """), {
-                "aid": attempt_id,
+                "aid": attempt.id,
                 "qid": qid,
                 "sel": value,
                 "ok": value == correct
             })
 
         conn.commit()
-
-

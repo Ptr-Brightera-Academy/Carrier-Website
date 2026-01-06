@@ -11,9 +11,7 @@
     <div class="card mt-4">
       <div class="card-body">
 
-        <div class="fw-bold">
-          {{ loop.index + offset - 3 }}. {{ q.question_html | safe }}
-        </div>
+        <strong>{{ loop.index + offset }}. {{ q.question_html | safe }}</strong>
 
         {% for opt in options if opt.question_id == q.id %}
           <div class="form-check mt-2">
@@ -27,14 +25,11 @@
             </label>
           </div>
         {% endfor %}
-
       </div>
     </div>
   {% endfor %}
 
-
-<button class="btn btn-success">Next</button>
-
+  <button class="btn btn-success mt-4">Next</button>
 </form>
 
 {% endblock %}
