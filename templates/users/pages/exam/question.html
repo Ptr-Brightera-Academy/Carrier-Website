@@ -1,0 +1,44 @@
+<h4>Question {{ question_number }} of {{ total_questions }}</h4>
+<div class="alert alert-info">
+  Time left: <span id="timer">{{ question.time_limit_seconds }}</span> seconds
+</div>
+
+<form method="POST" action="{{ url_for('save_answer', attempt_id=attempt.id) }}" id="examForm">
+  <input type="hidden" name="question_id" value="{{ question.id }}">
+
+  <p>{{ question.question_text }}</p>
+
+  {% if question.question_type == 'mcq' %}
+    {% for opt in options %}
+      <label><input type="radio" name="selected_option" value="{{ opt.id }}"> {{ opt.option_text }}</label><br>
+    {% endfor %}
+  {% else %}
+    <textarea name="answer_text" class="form-control"></textarea>
+  {% endif %}
+
+  <button class="btn btn-primary mt-3">Next</button>
+</form>
+<script>
+let timeLeft = {{ question.time_limit_seconds or 0 }};
+let timer = setInterval(function () {
+    if (timeLeft <= 0) {
+        clearInterval(timer);
+        document.getElementById("examForm").submit();
+    }
+    document.getElementById("timer").innerText = timeLeft;
+    timeLeft--;
+}, 1000);
+
+// Tab / window switch detection
+let violationSent = false;
+function sendViolation(type) {
+    if (violationSent) return;
+    violationSent = true;
+    navigator.sendBeacon("/exam/violation", JSON.stringify({type: type}));
+    alert("You left the exam. Disqualified.");
+    window.location.href = "/exam/disqualified";
+}
+
+document.addEventListener("visibilitychange", () => { if (document.hidden) sendViolation("tab_switch"); });
+window.addEventListener("blur", () => sendViolation("window_blur"));
+</script>

@@ -1,0 +1,19 @@
+{% extends "users/base.html" %}
+{% block title %}Quizzes | Ptr Brightera Academy{% endblock %}
+{% block content %}
+{% if request.args.get('not_enrolled') %}
+<div class="alert alert-warning d-flex align-items-start mt-4">
+  <div class="me-2">
+    <strong>Access Restricted</strong>
+  </div>
+  <div>
+    You are not currently enrolled in this course.
+    Please return to
+    <a href="{{ url_for('my_courses') }}" class="alert-link">
+      My Courses
+    </a>
+    to view courses you are enrolled in or enroll in this course.
+  </div>
+</div>
+{% endif %}
+{% endblock %}

@@ -249,9 +249,10 @@ def get_enrolled_courses(user_id):
 
     return courses
 
-
 def get_quiz_courses(user_id):
     with engine.connect() as conn:
+
+        # 1️⃣ First, calculate lesson progress per course separately
         result = conn.execute(text("""
             SELECT
                 c.id,
@@ -259,24 +260,42 @@ def get_quiz_courses(user_id):
                 c.slug,
                 q.id AS quiz_id,
                 q.title AS quiz_title,
+                MAX(qa.percentage) AS best_percentage,
+
+                -- calculate progress safely
                 IFNULL(
                     ROUND(
-                        (COUNT(lp.lesson_id) /
-                        (SELECT COUNT(*) FROM course_lessons WHERE course_id = c.id)) * 100
-                    ), 0
+                        (
+                            SELECT COUNT(*)
+                            FROM lesson_progress lp
+                            WHERE lp.user_id = e.user_id
+                              AND lp.course_id = c.id
+                              AND lp.completed = 1
+                        ) /
+                        NULLIF(
+                            (SELECT COUNT(*) FROM course_lessons WHERE course_id = c.id),
+                            0
+                        ) * 100
+                    ),
+                    0
                 ) AS progress
+
             FROM enrollments e
             JOIN courses c ON e.course_id = c.id
+
             LEFT JOIN quizzes q ON q.course_id = c.id
-            LEFT JOIN lesson_progress lp
-                ON lp.course_id = c.id
-                AND lp.user_id = e.user_id
-                AND lp.completed = 1
+
+            LEFT JOIN quiz_attempts qa
+                ON qa.quiz_id = q.id
+               AND qa.user_id = e.user_id
+               AND qa.completed = 1
+
             WHERE e.user_id = :user_id
             GROUP BY c.id, q.id
         """), {"user_id": user_id})
 
         return result.mappings().all()
+
 
 def get_user_progress(user_id):
     """
@@ -385,3 +404,140 @@ def save_answers(form, user_id, quiz_id):
             })
 
         conn.commit()
+
+def require_enrollment(user_id, course_id, conn) -> bool:
+    result = conn.execute(
+        text("""
+            SELECT 1 FROM enrollments
+            WHERE user_id=:uid AND course_id=:cid
+        """),
+        {"uid": user_id, "cid": course_id}
+    ).first()
+
+    return result is not None
+
+
+def get_exam_by_slug(slug):
+    with engine.connect() as conn:
+        row = conn.execute(text("""
+            SELECT *
+            FROM exams
+            WHERE slug = :slug AND is_published = 1
+        """), {"slug": slug}).mappings().first()
+    return dict(row) if row else None
+
+def get_active_exam_attempt(user_id, exam_slug):
+    with engine.connect() as conn:
+        row = conn.execute(text("""
+            SELECT ea.*
+            FROM exam_attempts ea
+            JOIN exams e ON ea.exam_id = e.id
+            WHERE ea.user_id = :uid
+              AND e.slug = :slug
+              AND ea.status = 'in_progress'
+            ORDER BY ea.started_at DESC
+            LIMIT 1
+        """), {"uid": user_id, "slug": exam_slug}).mappings().first()
+    return dict(row) if row else None
+
+def get_attempt_question_ids(attempt):
+    if not attempt.get('question_order'):
+        return []
+    return [int(q) for q in attempt['question_order'].split(",")]
+
+
+def get_exam_for_student(exam_slug):
+    with engine.connect() as conn:
+        exam = conn.execute(text("""
+            SELECT
+                id,
+                title,
+                description,
+                duration_minutes,
+                total_marks
+            FROM exams
+            WHERE slug = :slug
+              AND is_published = TRUE
+        """), {"slug": exam_slug}).mappings().first()
+
+    return dict(exam) if exam else None
+
+def get_exam_questions(exam_id):
+    with engine.connect() as conn:
+        questions = conn.execute(text("""
+            SELECT
+                id,
+                question_text,
+                question_type,
+                marks,
+                time_limit_seconds,
+                position
+            FROM exam_questions
+            WHERE exam_id = :exam_id
+            ORDER BY position ASC
+        """), {"exam_id": exam_id}).mappings().all()
+
+    return [dict(q) for q in questions]
+
+def get_question_options(question_ids):
+    if not question_ids:
+        return {}
+
+    with engine.connect() as conn:
+        rows = conn.execute(text("""
+            SELECT
+                question_id,
+                id AS option_id,
+                option_text
+            FROM exam_options
+            WHERE question_id IN :qids
+        """), {"qids": tuple(question_ids)}).mappings().all()
+
+    options = {}
+    for row in rows:
+        options.setdefault(row['question_id'], []).append({
+            "id": row['option_id'],
+            "text": row['option_text']
+        })
+
+    return options
+
+def get_or_create_attempt(exam_id, user_id):
+    with engine.connect() as conn:
+        attempt = conn.execute(text("""
+            SELECT id
+            FROM exam_attempts
+            WHERE exam_id = :exam_id
+              AND user_id = :user_id
+              AND status = 'in_progress'
+            LIMIT 1
+        """), {
+            "exam_id": exam_id,
+            "user_id": user_id
+        }).mappings().first()
+
+        if attempt:
+            return attempt['id']
+
+        result = conn.execute(text("""
+            INSERT INTO exam_attempts (exam_id, user_id)
+            VALUES (:exam_id, :user_id)
+        """), {
+            "exam_id": exam_id,
+            "user_id": user_id
+        })
+
+        return result.lastrowid
+
+def get_user_exams(user_id):
+    with engine.connect() as conn:
+        exams = conn.execute(text("""
+            SELECT id, title
+            FROM exams
+        """)).mappings().all()
+
+    return exams
+
+
+
+

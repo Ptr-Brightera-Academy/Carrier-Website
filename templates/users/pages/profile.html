@@ -3,10 +3,66 @@
 {% block title %}My Profile | Ptr Brightera Academy{% endblock %}
 
 {% block content %}
-  <h1 class="h2 mt-3">My Profile</h1>
-  <canvas id="myChart" class="my-4 w-100"></canvas>
-{% endblock %}
+<div class="container py-4">
 
-{% block scripts %}
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@2.9.4/dist/Chart.min.js"></script>
+  <!-- PAGE HEADER (CENTERED) -->
+  <div class="text-center mb-4">
+    <h1 class="h3 mb-1">My Profile</h1>
+    <small class="text-muted">Manage your account information</small>
+    <hr class="mx-auto mt-3" style="width: 60px;">
+  </div>
+
+  <div class="row">
+
+    <!-- PROFILE SUMMARY -->
+    <div class="col-lg-4 mb-4">
+      <div class="card shadow-sm text-center h-100">
+        <div class="card-body">
+
+          <!-- AVATAR WITH INITIAL -->
+          <div class="mb-3">
+            <div
+              class="rounded-circle bg-primary text-white d-inline-flex
+                     align-items-center justify-content-center"
+              style="width: 90px; height: 90px; font-size: 36px;">
+              {{ user.username[0]|upper }}
+            </div>
+          </div>
+
+          <h5 class="mb-0">{{ user.username }}</h5>
+          <small class="text-muted">Student</small>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- PROFILE DETAILS -->
+    <div class="col-lg-8">
+      <div class="card shadow-sm">
+        <div class="card-body">
+
+          <h6 class="mb-4 text-uppercase text-muted">Account Information</h6>
+
+          <div class="row mb-3">
+            <div class="col-sm-4 fw-semibold">Username</div>
+            <div class="col-sm-8 text-muted">{{ user.username }}</div>
+          </div>
+
+          <div class="row mb-3">
+            <div class="col-sm-4 fw-semibold">Email Address</div>
+            <div class="col-sm-8 text-muted">{{ user.email }}</div>
+          </div>
+
+          <div class="text-end">
+            <a href="#" class="btn btn-outline-primary btn-sm">
+              <i class="bi bi-pencil-square"></i> Edit Profile
+            </a>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
 {% endblock %}

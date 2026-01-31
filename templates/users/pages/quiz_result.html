@@ -1,29 +1,35 @@
 {% extends "users/base.html" %}
-
+{% block title %}Quizzes | Ptr Brightera Academy{% endblock %}
 {% block content %}
 
 <div class="container mt-5">
   <div class="card shadow-sm">
     <div class="card-body text-center">
 
-      <h2 class="mb-3">{{ quiz.title }} – Results</h2>
+        <h1 class="display-4 fw-bold text-success">
+          {{ percentage }}%
+        </h1>
 
-      <h1 class="display-4 fw-bold text-success">
-        {{ score }}%
-      </h1>
+        <p>Total Questions: <strong>{{ total_questions }}</strong></p>
+        <p>Correct: <strong class="text-success">{{ correct }}</strong></p>
+        <p>Wrong: <strong class="text-danger">{{ wrong }}</strong></p>
 
-      <hr>
+        {% if failed_numbers %}
+          <div class="alert alert-warning mt-4 text-start">
+            <strong>Review Recommended</strong><br>
+            To improve your performance, please revisit the following question(s):
+            <strong>{{ failed_numbers | join(", ") }}</strong>.
+          </div>
+        {% else %}
+          <div class="alert alert-success mt-4">
+            <strong>Excellent Work!</strong><br>
+            You answered all questions correctly. Outstanding performance 🎉
+          </div>
+        {% endif %}
 
-      <p>Total Questions: <strong>{{ total_questions }}</strong></p>
-      <p>Correct: <strong class="text-success">{{ correct }}</strong></p>
-      <p>Wrong: <strong class="text-danger">{{ wrong }}</strong></p>
-
-      <div class="mt-4">
         <a href="{{ url_for('quizes') }}" class="btn btn-primary">
           Back to Quizzes
         </a>
-      </div>
-
     </div>
   </div>
 </div>

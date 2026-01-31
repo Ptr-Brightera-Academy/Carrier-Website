@@ -1,11 +1,13 @@
 from flask import Flask, jsonify, render_template, request, redirect, send_file, url_for, abort, session, flash, current_app
-from database import get_courses_from_db, get_jobs_from_db, get_job_from_db, add_application_to_db, has_user_already_applied, get_applicants, count_applicants,get_unique_education_levels, get_user_by_email, add_user, get_user_by_username, engine, enroll_student, is_user_enrolled, get_enrolled_courses, get_quiz_courses, get_user_progress, save_answers, get_next_questions
+from database import get_courses_from_db, get_jobs_from_db, get_job_from_db, add_application_to_db, has_user_already_applied, get_applicants, count_applicants,get_unique_education_levels, get_user_by_email, add_user, get_user_by_username, engine, enroll_student, is_user_enrolled, get_enrolled_courses, get_quiz_courses, get_user_progress, save_answers, get_next_questions,require_enrollment, get_user_exams
 import os
 from werkzeug.utils import secure_filename
 import uuid
 from sqlalchemy import text
 from werkzeug.security import check_password_hash
 from flask_login import LoginManager, UserMixin, logout_user, login_required, login_user, current_user
+import random
+
 
 # ---------------------------
 # APP SETUP
@@ -173,7 +175,7 @@ def apply_to_job(id):
 # ---------------------------
 # AUTH ROUTES
 # ---------------------------
-@app.route("/signup", methods=["GET", "POST"])
+@app.route("/auth/signup", methods=["GET", "POST"])
 def signup():
     if request.method == "POST":
         username = request.form.get("username")
@@ -213,7 +215,7 @@ def signup():
     return render_template("auth/signup.html")
 
 
-@app.route("/login", methods=["GET", "POST"])
+@app.route("/auth/login", methods=["GET", "POST"])
 def login():
     if current_user.is_authenticated:
         return redirect(url_for("dashboard"))
@@ -261,7 +263,7 @@ def logout():
 # ---------------------------
 # DASHBOARD & USER ROUTES
 # ---------------------------
-@app.route("/dashboard")
+@app.route("/student/dashboard")
 @login_required
 def dashboard():
     user = current_user
@@ -285,7 +287,7 @@ def dashboard():
     )
 
 
-@app.route('/my_courses')
+@app.route('/student/courses')
 @login_required
 def my_courses():
     courses = get_enrolled_courses(current_user.id)
@@ -387,22 +389,365 @@ def lessons(course_slug):
         )
     )
 
-@app.route('/quizes')
+
+
+
+
+
+
+
+
+
+
+@app.route('/student/quizes')
 @login_required
 def quizes():
     courses = get_quiz_courses(current_user.id)
+    exams = get_user_exams(current_user.id)
     return render_template(
         'users/pages/quizes.html',
-        courses=courses
+        courses=courses, exams=exams
     )
+
+@app.route("/exam/<exam_slug>/start")
+@login_required
+def start_exam(exam_slug):
+    with engine.connect() as conn:
+        # 1️⃣ Get exam by slug
+        exam = conn.execute(text("""
+            SELECT id, title FROM exams
+            WHERE slug = :slug AND is_published = 1
+        """), {"slug": exam_slug}).fetchone()
+
+        if not exam:
+            flash("Exam not found or not published.", "danger")
+            return redirect(url_for("quizes"))
+
+        exam_id = exam.id
+
+        # 2️⃣ Check for any existing attempt
+        existing = conn.execute(text("""
+            SELECT id, status FROM exam_attempts
+            WHERE exam_id = :exam_id
+            AND user_id = :user_id
+        """), {"exam_id": exam_id, "user_id": current_user.id}).fetchone()
+
+        if existing:
+            if existing.status == 'in_progress':
+                return redirect(url_for("exam_question", exam_slug=exam_slug))
+            else:
+                flash("You have already completed this exam.", "info")
+                return redirect(url_for("exam_results", exam_slug=exam_slug))
+
+        # 3️⃣ Get question IDs
+        questions = conn.execute(text("""
+            SELECT id FROM exam_questions
+            WHERE exam_id = :exam_id
+            ORDER BY position
+        """), {"exam_id": exam_id}).fetchall()
+
+        if not questions:
+            flash("This exam has no questions yet.", "warning")
+            return redirect(url_for("quizes"))
+
+        question_ids = [str(q.id) for q in questions]
+        random.shuffle(question_ids)
+        order_string = ",".join(question_ids)
+
+        # 4️⃣ Create attempt
+        conn.execute(text("""
+            INSERT INTO exam_attempts (exam_id, user_id, question_order)
+            VALUES (:exam_id, :user_id, :order)
+        """), {
+            "exam_id": exam_id,
+            "user_id": current_user.id,
+            "order": order_string
+        })
+
+        conn.commit()
+        flash("Exam started! Good luck!", "success")
+
+    return redirect(url_for("exam_question", exam_slug=exam_slug))
+
+@app.route("/exam/<exam_slug>/question")
+@login_required
+def exam_question(exam_slug):
+    with engine.connect() as conn:
+        # Get active attempt
+        attempt = conn.execute(text("""
+            SELECT ea.*
+            FROM exam_attempts ea
+            JOIN exams e ON ea.exam_id = e.id
+            WHERE ea.user_id = :user_id
+            AND e.slug = :slug
+            AND ea.status = 'in_progress'
+        """), {"user_id": current_user.id, "slug": exam_slug}).mappings().fetchone()
+
+    if not attempt:
+        flash("No active exam session found.", "warning")
+        return redirect(url_for("quizes"))
+
+    # Get question order
+    if not attempt['question_order']:
+        flash("Exam questions not properly configured.", "danger")
+        return redirect(url_for("quizes"))
+
+    question_ids = attempt['question_order'].split(",")
+    index = attempt['current_question'] - 1
+
+    # Check if exam is complete
+    if index >= len(question_ids):
+        return redirect(url_for("submit_exam", exam_slug=exam_slug))
+
+    # Get current question
+    question_id = question_ids[index]
+
+    with engine.connect() as conn:
+        question = conn.execute(text("""
+            SELECT * FROM exam_questions
+            WHERE id = :id
+        """), {"id": question_id}).mappings().fetchone()
+
+    if not question:
+        flash("Question not found.", "danger")
+        return redirect(url_for("quizes"))
+
+    # Get options for MCQ
+    options = []
+    if question['question_type'] == 'mcq':
+        with engine.connect() as conn:
+            options = conn.execute(text("""
+                SELECT id, option_text FROM exam_options
+                WHERE question_id = :qid
+            """), {"qid": question_id}).mappings().all()
+
+    # Get existing answer if any
+    with engine.connect() as conn:
+        existing_answer = conn.execute(text("""
+            SELECT * FROM exam_answers
+            WHERE attempt_id = :attempt_id
+            AND question_id = :question_id
+        """), {
+            "attempt_id": attempt['id'],
+            "question_id": question_id
+        }).mappings().fetchone()
+
+    return render_template("exam/question.html",
+                           exam_slug=exam_slug,
+                           question=question,
+                           options=options,
+                           existing_answer=existing_answer,
+                           question_number=index + 1,
+                           total_questions=len(question_ids),
+                           attempt=attempt)
+
+@app.route("/exam/<exam_slug>/answer", methods=["POST"])
+@login_required
+def save_answer(exam_slug):
+    # Validate form data
+    question_id = request.form.get('question_id')
+    answer_text = request.form.get('answer_text', '').strip()
+    selected_option = request.form.get('selected_option')
+
+    if not question_id:
+        flash("Invalid question.", "danger")
+        return redirect(url_for("exam_question", exam_slug=exam_slug))
+
+    with engine.connect() as conn:
+        # Get active attempt
+        attempt = conn.execute(text("""
+            SELECT ea.id
+            FROM exam_attempts ea
+            JOIN exams e ON ea.exam_id = e.id
+            WHERE ea.user_id = :user_id
+            AND e.slug = :slug
+            AND ea.status = 'in_progress'
+        """), {"user_id": current_user.id, "slug": exam_slug}).fetchone()
+
+        if not attempt:
+            flash("No active exam session.", "warning")
+            return redirect(url_for("quizes"))
+
+        attempt_id = attempt.id
+
+        # Save or update answer
+        try:
+            selected_option_id = int(selected_option) if selected_option else None
+        except (ValueError, TypeError):
+            selected_option_id = None
+
+        # Check if answer already exists
+        existing = conn.execute(text("""
+            SELECT id FROM exam_answers
+            WHERE attempt_id = :attempt_id
+            AND question_id = :question_id
+        """), {
+            "attempt_id": attempt_id,
+            "question_id": question_id
+        }).fetchone()
+
+        if existing:
+            # Update existing answer
+            conn.execute(text("""
+                UPDATE exam_answers
+                SET answer_text = :text,
+                    selected_option_id = :option,
+                    updated_at = NOW()
+                WHERE attempt_id = :attempt_id
+                AND question_id = :question_id
+            """), {
+                "attempt_id": attempt_id,
+                "question_id": question_id,
+                "text": answer_text if answer_text else None,
+                "option": selected_option_id
+            })
+        else:
+            # Insert new answer
+            conn.execute(text("""
+                INSERT INTO exam_answers (attempt_id, question_id, answer_text, selected_option_id)
+                VALUES (:attempt_id, :question_id, :text, :option)
+            """), {
+                "attempt_id": attempt_id,
+                "question_id": question_id,
+                "text": answer_text if answer_text else None,
+                "option": selected_option_id
+            })
+
+        # Move to next question
+        conn.execute(text("""
+            UPDATE exam_attempts
+            SET current_question = current_question + 1
+            WHERE id = :id
+        """), {"id": attempt_id})
+
+        conn.commit()
+
+    return redirect(url_for("exam_question", exam_slug=exam_slug))
+
+@app.route("/exam/<exam_slug>/submit")
+@login_required
+def submit_exam(exam_slug):
+    with engine.connect() as conn:
+        # Get active attempt
+        attempt = conn.execute(text("""
+            SELECT ea.*
+            FROM exam_attempts ea
+            JOIN exams e ON ea.exam_id = e.id
+            WHERE ea.user_id = :user_id
+            AND e.slug = :slug
+            AND ea.status = 'in_progress'
+        """), {"user_id": current_user.id, "slug": exam_slug}).fetchone()
+
+        if not attempt:
+            flash("No exam to submit.", "warning")
+            return redirect(url_for("quizes"))
+
+        # Calculate auto score for MCQs
+        total_marks = 0
+        answers = conn.execute(text("""
+            SELECT ea.*, eq.question_type, eq.marks, eo.is_correct
+            FROM exam_answers ea
+            JOIN exam_questions eq ON ea.question_id = eq.id
+            LEFT JOIN exam_options eo ON ea.selected_option_id = eo.id
+            WHERE ea.attempt_id = :attempt_id
+        """), {"attempt_id": attempt.id}).fetchall()
+
+        for answer in answers:
+            if answer.question_type == 'mcq' and answer.is_correct:
+                total_marks += answer.marks
+            elif answer.question_type in ['short', 'long']:
+                # For non-MCQ, auto_mark remains 0 (needs manual grading)
+                pass
+
+        # Update attempt with auto score
+        conn.execute(text("""
+            UPDATE exam_attempts
+            SET status = 'submitted',
+                submitted_at = NOW(),
+                auto_score = :score,
+                final_score = :score
+            WHERE id = :id
+        """), {
+            "id": attempt.id,
+            "score": total_marks
+        })
+
+        conn.commit()
+        flash("Exam submitted successfully!", "success")
+
+    return redirect(url_for("exam_results", exam_slug=exam_slug))
+
+@app.route("/exam/<exam_slug>/results")
+@login_required
+def exam_results(exam_slug):
+    with engine.connect() as conn:
+        # Get exam details
+        exam = conn.execute(text("""
+            SELECT * FROM exams
+            WHERE slug = :slug
+        """), {"slug": exam_slug}).mappings().fetchone()
+
+        if not exam:
+            abort(404)
+
+        # Get user's attempt
+        attempt = conn.execute(text("""
+            SELECT * FROM exam_attempts
+            WHERE exam_id = :exam_id
+            AND user_id = :user_id
+            ORDER BY submitted_at DESC
+            LIMIT 1
+        """), {
+            "exam_id": exam.id,
+            "user_id": current_user.id
+        }).mappings().fetchone()
+
+        if not attempt:
+            flash("No exam results found.", "warning")
+            return redirect(url_for("quizes"))
+
+        # Get answers with questions
+        answers = conn.execute(text("""
+            SELECT ea.*, eq.question_text, eq.question_type, eq.marks
+            FROM exam_answers ea
+            JOIN exam_questions eq ON ea.question_id = eq.id
+            WHERE ea.attempt_id = :attempt_id
+        """), {"attempt_id": attempt['id']}).mappings().all()
+
+    return render_template("exam/results.html",
+                           exam=exam,
+                           attempt=attempt,
+                           answers=answers)
+
+@app.route("/exam/disqualified")
+@login_required
+def exam_disqualified():
+    return render_template("exam/disqualified.html")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     
-
-
 @app.route("/quiz/<course_slug>/start")
 @login_required
 def start_quiz(course_slug):
-
-    offset = int(request.args.get("offset", 0))
 
     with engine.connect() as conn:
 
@@ -416,9 +761,76 @@ def start_quiz(course_slug):
             {"cid": course.id}
         ).first()
 
+        # 🔑 ALWAYS create a new attempt
+        conn.execute(text("""
+            INSERT INTO quiz_attempts (user_id, quiz_id, completed)
+            VALUES (:uid, :qid, 0)
+        """), {
+            "uid": current_user.id,
+            "qid": quiz.id
+        })
+
+        conn.commit()
+
+    return redirect(url_for("quiz_questions", course_slug=course_slug))
+
+@app.route("/courses/<slug>/error")
+@login_required
+def course_access_error(slug):
+
+    with engine.connect() as conn:
+
+        course = conn.execute(
+            text("SELECT * FROM courses WHERE slug = :slug"),
+            {"slug": slug}
+        ).first()
+
+        if not course:
+            abort(404)
+
+    return render_template(
+        "users/pages/error.html",
+        title="Course Not Enrolled", course=course,
+        message="You are not enrolled in this course. Enroll to unlock lessons and quizzes."), 403
+
+
+
+@app.route("/quiz/<course_slug>/questions")
+@login_required
+def quiz_questions(course_slug):
+
+    offset = int(request.args.get("offset", 0))
+
+    with engine.connect() as conn:
+
+        # 1. Get course
+        course = conn.execute(
+            text("SELECT * FROM courses WHERE slug = :slug"),
+            {"slug": course_slug}
+        ).first()
+
+        if not course:
+            abort(403)
+
+        # 2. 🔒 Enrollment check (VERY IMPORTANT)
+        if not require_enrollment(current_user.id, course.id, conn):
+            return redirect(
+                url_for("course_access_error", slug=course.slug, not_enrolled=1)
+            )
+
+        # 3. Get quiz
+        quiz = conn.execute(
+            text("SELECT * FROM quizzes WHERE course_id = :cid"),
+            {"cid": course.id}
+        ).first()
+
+        if not quiz:
+            abort(404)
+
+        # 4. Get questions
         questions = conn.execute(text("""
             SELECT * FROM quiz_questions
-            WHERE quiz_id=:qid
+            WHERE quiz_id = :qid
             ORDER BY id
             LIMIT 3 OFFSET :off
         """), {
@@ -426,14 +838,23 @@ def start_quiz(course_slug):
             "off": offset
         }).fetchall()
 
+        # 5. If no questions left → results
         if not questions:
-            return redirect(url_for("quiz_result", course_slug=course_slug))
+            return redirect(
+                url_for("quiz_result", course_slug=course.slug)
+            )
 
-        ids = [q.id for q in questions]
-        options = conn.execute(text(f"""
-            SELECT * FROM quiz_options
-            WHERE question_id IN ({','.join(map(str, ids))})
-        """)).fetchall()
+        # 6. Get options safely
+        question_ids = [q.id for q in questions]
+
+        options = conn.execute(
+            text("""
+                SELECT * FROM quiz_options
+                WHERE question_id IN :ids
+            """).bindparams(
+                ids=tuple(question_ids)
+            )
+        ).fetchall()
 
     return render_template(
         "users/pages/quiz_page.html",
@@ -444,6 +865,8 @@ def start_quiz(course_slug):
         offset=offset
     )
 
+
+
 @app.route("/quiz/<course_slug>/submit", methods=["POST"])
 @login_required
 def submit_quiz(course_slug):
@@ -451,6 +874,7 @@ def submit_quiz(course_slug):
     offset = int(request.form.get("offset", 0))
 
     with engine.connect() as conn:
+
         quiz = conn.execute(text("""
             SELECT q.*
             FROM quizzes q
@@ -458,10 +882,42 @@ def submit_quiz(course_slug):
             WHERE c.slug=:slug
         """), {"slug": course_slug}).first()
 
-    save_answers(request.form, current_user.id, quiz.id)
+        attempt = conn.execute(text("""
+            SELECT * FROM quiz_attempts
+            WHERE user_id=:uid AND quiz_id=:qid AND completed=0
+            ORDER BY id DESC
+            LIMIT 1
+        """), {
+            "uid": current_user.id,
+            "qid": quiz.id
+        }).first()
+
+        for key, value in request.form.items():
+            if not key.startswith("q"):
+                continue
+
+            qid = int(key.replace("q", ""))
+
+            correct_option = conn.execute(
+                text("SELECT correct_option FROM quiz_questions WHERE id=:id"),
+                {"id": qid}
+            ).scalar()
+
+            conn.execute(text("""
+                INSERT INTO quiz_answers
+                (attempt_id, question_id, selected_option, is_correct)
+                VALUES (:aid, :qid, :sel, :ok)
+            """), {
+                "aid": attempt.id,
+                "qid": qid,
+                "sel": value,
+                "ok": value == correct_option
+            })
+
+        conn.commit()
 
     return redirect(
-        url_for("start_quiz", course_slug=course_slug, offset=offset + 3)
+        url_for("quiz_questions", course_slug=course_slug, offset=offset + 3)
     )
 
 
@@ -471,114 +927,99 @@ def quiz_result(course_slug):
 
     with engine.connect() as conn:
 
-        # 1. Load course
         course = conn.execute(
             text("SELECT * FROM courses WHERE slug=:slug"),
             {"slug": course_slug}
         ).first()
 
-        if not course:
-            abort(404)
-
-        # 2. Load quiz
         quiz = conn.execute(
             text("SELECT * FROM quizzes WHERE course_id=:cid"),
             {"cid": course.id}
         ).first()
 
-        if not quiz:
-            abort(404)
+        attempt = conn.execute(text("""
+            SELECT * FROM quiz_attempts
+            WHERE user_id=:uid AND quiz_id=:qid
+            ORDER BY id DESC
+            LIMIT 1
+        """), {
+            "uid": current_user.id,
+            "qid": quiz.id
+        }).first()
 
-        # 3. Get active attempt
-        attempt = conn.execute(
-            text("""
-                SELECT * FROM quiz_attempts
-                WHERE user_id=:uid
-                AND quiz_id=:qid
-                AND completed=0
-            """),
-            {
-                "uid": current_user.id,
-                "qid": quiz.id
-            }
-        ).first()
+        total_questions = quiz.total_questions
 
-        if not attempt:
-            # No active attempt → redirect somewhere safe
-            return redirect(url_for("quizes"))
+        # ✅ CORRECT answers (THIS attempt only)
+        correct = conn.execute(text("""
+            SELECT COUNT(*)
+            FROM quiz_answers
+            WHERE attempt_id=:aid AND is_correct=1
+        """), {"aid": attempt.id}).scalar()
 
-        # 4. Calculate stats
-        total_questions = conn.execute(
-            text("""
-                SELECT COUNT(*) FROM quiz_questions
-                WHERE quiz_id=:qid
-            """),
-            {"qid": quiz.id}
-        ).scalar()
+        wrong = total_questions - correct
+        percentage = round((correct / total_questions) * 100, 2)
 
-        answered = conn.execute(
-            text("""
-                SELECT COUNT(*) FROM quiz_answers
-                WHERE attempt_id=:aid
-            """),
-            {"aid": attempt.id}
-        ).scalar() or 0
+        # ✅ FAILED questions (NO duplicates)
+        failed = conn.execute(text("""
+            SELECT DISTINCT qq.id
+            FROM quiz_answers qa
+            JOIN quiz_questions qq ON qa.question_id = qq.id
+            WHERE qa.attempt_id=:aid AND qa.is_correct=0
+            ORDER BY qq.id
+        """), {"aid": attempt.id}).fetchall()
 
-        correct = conn.execute(
-            text("""
-                SELECT COUNT(*) FROM quiz_answers
-                WHERE attempt_id=:aid AND is_correct=1
-            """),
-            {"aid": attempt.id}
-        ).scalar() or 0
+        failed_numbers = [q.id for q in failed]
 
-        wrong = answered - correct
-        score = round((correct / total_questions) * 100, 2) if total_questions else 0
-
-        # 5. Mark attempt as completed
-        conn.execute(
-            text("""
+        # ✅ UPDATE attempt ONCE
+        if attempt.completed == 0:
+            conn.execute(text("""
                 UPDATE quiz_attempts
-                SET completed=1
+                SET score=:score,
+                    percentage=:percentage,
+                    completed=1,
+                    completed_at=CURRENT_TIMESTAMP
                 WHERE id=:aid
-            """),
-            {"aid": attempt.id}
-        )
+            """), {
+                "score": correct,
+                "percentage": percentage,
+                "aid": attempt.id
+            })
 
-        conn.commit()
+            conn.commit()
 
     return render_template(
         "users/pages/quiz_result.html",
         course=course,
         quiz=quiz,
         total_questions=total_questions,
-        answered=answered,
         correct=correct,
         wrong=wrong,
-        score=score
+        percentage=percentage,
+        failed_numbers=failed_numbers
     )
 
 
-
-
-
-
-@app.route('/my_certificate(s)')
+@app.route('/student/certificate(s)')
 @login_required
 def certificates():
     return render_template('users/pages/certificates.html')
 
-@app.route('/discussions')
+@app.route('/student/discussions')
 @login_required
 def discussions():
     return render_template('users/pages/discussions.html')
 
-@app.route('/my_profile')
+@app.route('/student/account/billing')
+@login_required
+def billing():
+    return render_template('users/pages/billing.html')
+
+@app.route('/student/profile')
 @login_required
 def profile():
-    return render_template('users/pages/profile.html')
+    return render_template('users/pages/profile.html', user=current_user)
 
-@app.route('/my_progress')
+@app.route('/student/progress')
 @login_required
 def progress():
     with engine.connect() as conn:
@@ -601,7 +1042,7 @@ def progress():
 
 
 
-@app.route('/complete_lesson', methods=['POST'])
+@app.route('/student/completed/lesson', methods=['POST'])
 @login_required
 def complete_lesson():
     data = request.get_json()
@@ -621,14 +1062,11 @@ def complete_lesson():
 
     return {"status": "ok"}
 
-
-
-
-
-@app.route('/settings')
+@app.route('/student/settings')
 @login_required
 def settings():
     return render_template('users/pages/settings.html')
+
 
 @app.route("/services")
 def services():
@@ -676,6 +1114,13 @@ def view_applicants():
         keyword=keyword,
         education_options=education_options
     )
+
+# ---------------------------
+# EXAM ROUTES
+# ---------------------------
+
+
+
 
 # ---------------------------
 # RUN
