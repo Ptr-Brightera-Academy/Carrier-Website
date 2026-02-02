@@ -417,7 +417,81 @@ def require_enrollment(user_id, course_id, conn) -> bool:
     return result is not None
 
 
+def get_user_exams(user_id):
+    """Get exams available for a user - only for enrolled courses"""
+    with engine.connect() as conn:
+        exams = conn.execute(text("""
+            SELECT 
+                e.id,
+                e.title,
+                e.slug,
+                e.description,
+                e.duration_minutes,
+                e.total_marks,
+                c.title as course_title,
+                -- Check if user has completed all lessons AND is enrolled in course
+                CASE 
+                    WHEN EXISTS (
+                        SELECT 1 FROM course_lessons cl
+                        WHERE cl.course_id = e.course_id
+                    ) AND (
+                        SELECT COUNT(*) FROM lesson_progress lp
+                        WHERE lp.user_id = :user_id 
+                        AND lp.course_id = e.course_id 
+                        AND lp.completed = 1
+                    ) = (
+                        SELECT COUNT(*) FROM course_lessons cl
+                        WHERE cl.course_id = e.course_id
+                    ) AND EXISTS (
+                        SELECT 1 FROM enrollments en
+                        WHERE en.user_id = :user_id 
+                        AND en.course_id = e.course_id
+                    ) THEN 1
+                    ELSE 0
+                END as unlocked,
+                -- Get latest attempt status (excluding disqualified)
+                (SELECT ea.status 
+                 FROM exam_attempts ea 
+                 WHERE ea.exam_id = e.id 
+                 AND ea.user_id = :user_id
+                 AND ea.status != 'disqualified'
+                 ORDER BY ea.started_at DESC 
+                 LIMIT 1) as attempt_status,
+                -- Get final score from latest non-disqualified attempt
+                (SELECT ea.final_score 
+                 FROM exam_attempts ea 
+                 WHERE ea.exam_id = e.id 
+                 AND ea.user_id = :user_id
+                 AND ea.status != 'disqualified'
+                 ORDER BY ea.started_at DESC 
+                 LIMIT 1) as final_score,
+                -- Check if user has ANY disqualified attempt for this exam
+                CASE 
+                    WHEN EXISTS (
+                        SELECT 1 FROM exam_attempts ea2
+                        WHERE ea2.exam_id = e.id
+                        AND ea2.user_id = :user_id
+                        AND ea2.status = 'disqualified'
+                    ) THEN 1
+                    ELSE 0
+                END as is_disqualified
+            FROM exams e
+            JOIN courses c ON e.course_id = c.id
+            WHERE e.is_published = 1
+            -- Only show exams for courses user is enrolled in
+            AND EXISTS (
+                SELECT 1 FROM enrollments en
+                WHERE en.user_id = :user_id
+                AND en.course_id = e.course_id
+            )
+            ORDER BY e.created_at DESC
+        """), {"user_id": user_id}).mappings().all()
+
+    return [dict(exam) for exam in exams]
+
+
 def get_exam_by_slug(slug):
+    """Get exam by slug"""
     with engine.connect() as conn:
         row = conn.execute(text("""
             SELECT *
@@ -427,6 +501,7 @@ def get_exam_by_slug(slug):
     return dict(row) if row else None
 
 def get_active_exam_attempt(user_id, exam_slug):
+    """Get active exam attempt for user"""
     with engine.connect() as conn:
         row = conn.execute(text("""
             SELECT ea.*
@@ -440,29 +515,8 @@ def get_active_exam_attempt(user_id, exam_slug):
         """), {"uid": user_id, "slug": exam_slug}).mappings().first()
     return dict(row) if row else None
 
-def get_attempt_question_ids(attempt):
-    if not attempt.get('question_order'):
-        return []
-    return [int(q) for q in attempt['question_order'].split(",")]
-
-
-def get_exam_for_student(exam_slug):
-    with engine.connect() as conn:
-        exam = conn.execute(text("""
-            SELECT
-                id,
-                title,
-                description,
-                duration_minutes,
-                total_marks
-            FROM exams
-            WHERE slug = :slug
-              AND is_published = TRUE
-        """), {"slug": exam_slug}).mappings().first()
-
-    return dict(exam) if exam else None
-
 def get_exam_questions(exam_id):
+    """Get all questions for an exam"""
     with engine.connect() as conn:
         questions = conn.execute(text("""
             SELECT
@@ -479,65 +533,91 @@ def get_exam_questions(exam_id):
 
     return [dict(q) for q in questions]
 
-def get_question_options(question_ids):
-    if not question_ids:
-        return {}
-
+def get_question_options(question_id):
+    """Get options for a specific question"""
     with engine.connect() as conn:
         rows = conn.execute(text("""
             SELECT
-                question_id,
                 id AS option_id,
                 option_text
             FROM exam_options
-            WHERE question_id IN :qids
-        """), {"qids": tuple(question_ids)}).mappings().all()
+            WHERE question_id = :qid
+            ORDER BY id
+        """), {"qid": question_id}).mappings().all()
 
-    options = {}
-    for row in rows:
-        options.setdefault(row['question_id'], []).append({
-            "id": row['option_id'],
-            "text": row['option_text']
-        })
+    return [dict(row) for row in rows]
 
-    return options
-
-def get_or_create_attempt(exam_id, user_id):
+def get_question_by_id(question_id):
+    """Get question by ID"""
     with engine.connect() as conn:
-        attempt = conn.execute(text("""
-            SELECT id
-            FROM exam_attempts
-            WHERE exam_id = :exam_id
-              AND user_id = :user_id
-              AND status = 'in_progress'
-            LIMIT 1
-        """), {
-            "exam_id": exam_id,
-            "user_id": user_id
-        }).mappings().first()
+        row = conn.execute(text("""
+            SELECT *
+            FROM exam_questions
+            WHERE id = :id
+        """), {"id": question_id}).mappings().first()
+    return dict(row) if row else None
 
-        if attempt:
-            return attempt['id']
-
-        result = conn.execute(text("""
-            INSERT INTO exam_attempts (exam_id, user_id)
-            VALUES (:exam_id, :user_id)
-        """), {
-            "exam_id": exam_id,
-            "user_id": user_id
-        })
-
-        return result.lastrowid
-
-def get_user_exams(user_id):
+def save_exam_answer(attempt_id, question_id, answer_text=None, selected_option_id=None):
+    """Save or update exam answer"""
     with engine.connect() as conn:
-        exams = conn.execute(text("""
-            SELECT id, title
-            FROM exams
-        """)).mappings().all()
+        # Check if answer exists
+        existing = conn.execute(text("""
+            SELECT id FROM exam_answers
+            WHERE attempt_id = :attempt_id
+            AND question_id = :question_id
+        """), {
+            "attempt_id": attempt_id,
+            "question_id": question_id
+        }).fetchone()
 
-    return exams
+        if existing:
+            # Update
+            conn.execute(text("""
+                UPDATE exam_answers
+                SET answer_text = :text,
+                    selected_option_id = :option,
+                    updated_at = NOW()
+                WHERE attempt_id = :attempt_id
+                AND question_id = :question_id
+            """), {
+                "attempt_id": attempt_id,
+                "question_id": question_id,
+                "text": answer_text,
+                "option": selected_option_id
+            })
+        else:
+            # Insert
+            conn.execute(text("""
+                INSERT INTO exam_answers 
+                (attempt_id, question_id, answer_text, selected_option_id)
+                VALUES (:attempt_id, :question_id, :text, :option)
+            """), {
+                "attempt_id": attempt_id,
+                "question_id": question_id,
+                "text": answer_text,
+                "option": selected_option_id
+            })
+        conn.commit()
 
+def get_exam_attempt_by_id(attempt_id):
+    """Get exam attempt by ID"""
+    with engine.connect() as conn:
+        row = conn.execute(text("""
+            SELECT * FROM exam_attempts
+            WHERE id = :id
+        """), {"id": attempt_id}).mappings().first()
+    return dict(row) if row else None
 
-
-
+def get_user_exam_attempts(user_id, exam_id):
+    """Get all attempts for user on an exam"""
+    with engine.connect() as conn:
+        rows = conn.execute(text("""
+            SELECT * FROM exam_attempts
+            WHERE user_id = :user_id
+            AND exam_id = :exam_id
+            ORDER BY started_at DESC
+        """), {
+            "user_id": user_id,
+            "exam_id": exam_id
+        }).mappings().all()
+    return [dict(row) for row in rows]

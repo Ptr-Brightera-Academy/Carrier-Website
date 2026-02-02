@@ -1,0 +1,149 @@
+{% extends "users/base.html" %}
+
+{% block title %}Exam Disqualified | Ptr Brightera Academy{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-10 col-lg-8">
+            <div class="card shadow-lg border-danger">
+                <div class="card-header bg-danger text-white text-center py-4">
+                    <h2 class="mb-0">
+                        <i class="fas fa-ban fa-lg"></i> Exam Disqualified
+                    </h2>
+                </div>
+
+                <div class="card-body p-5">
+                    <!-- Main Message -->
+                    <div class="text-center mb-5">
+                        <div class="mb-4">
+                            <i class="fas fa-times-circle fa-6x text-danger"></i>
+                        </div>
+                        <h3 class="text-danger mb-3">Exam Attempt Terminated</h3>
+                        <p class="lead text-muted">
+                            Your exam session has been disqualified due to examination policy violations.
+                        </p>
+                    </div>
+
+                    <!-- Official Notice -->
+                    <div class="alert alert-danger border-danger">
+                        <div class="d-flex">
+                            <i class="fas fa-exclamation-triangle fa-2x me-3 mt-1"></i>
+                            <div>
+                                <h5 class="alert-heading">Official Notice</h5>
+                                <p class="mb-2">
+                                    This examination attempt has been invalidated in accordance with academic integrity policies.
+                                </p>
+                                <hr>
+                                <p class="mb-0 small">
+                                    <strong>Reference:</strong> Exam Violation #{{ attempt.id if attempt else 'N/A' }}
+                                    <br>
+                                    <strong>Date/Time:</strong> {{ violation_time if violation_time else 'Upon detection' }}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Policy Information -->
+                    <div class="card border-0 bg-light mb-4">
+                        <div class="card-body">
+                            <h5 class="card-title text-dark">
+                                <i class="fas fa-file-contract text-primary"></i> Examination Policy
+                            </h5>
+                            <p class="card-text">
+                                All examinations are conducted under strict academic integrity guidelines. 
+                                Violations may include, but are not limited to:
+                            </p>
+                            <ul class="list-unstyled">
+                                <li class="mb-2"><i class="fas fa-minus text-secondary"></i> Unauthorized navigation away from the exam interface</li>
+                                <li class="mb-2"><i class="fas fa-minus text-secondary"></i> Use of prohibited tools or resources</li>
+                                <li class="mb-2"><i class="fas fa-minus text-secondary"></i> Attempted copying or distribution of exam content</li>
+                                <li><i class="fas fa-minus text-secondary"></i> Violation of examination time limits</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- Next Steps -->
+                    <div class="card border-primary">
+                        <div class="card-header bg-primary bg-opacity-10 border-primary">
+                            <h5 class="mb-0 text-primary">
+                                <i class="fas fa-forward"></i> Next Steps
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <div class="d-flex">
+                                        <div class="flex-shrink-0">
+                                            <i class="fas fa-envelope text-primary fa-lg"></i>
+                                        </div>
+                                        <div class="flex-grow-1 ms-3">
+                                            <h6>Contact Instructor</h6>
+                                            <p class="small text-muted mb-0">
+                                                For inquiries regarding this disqualification, please contact your course instructor through official channels.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <div class="d-flex">
+                                        <div class="flex-shrink-0">
+                                            <i class="fas fa-arrow-right text-primary fa-lg"></i>
+                                        </div>
+                                        <div class="flex-grow-1 ms-3">
+                                            <h6>Continue Learning</h6>
+                                            <p class="small text-muted mb-0">
+                                                Return to your dashboard to access other course materials and learning resources.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+                <div class="card-footer text-center text-muted py-3">
+                    <small>
+                        <i class="fas fa-shield-alt"></i> Academic Integrity System | 
+                        Ptr Brightera Academy Examination Portal
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Footer Note -->
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="text-center">
+                <p class="text-muted small">
+                    <i class="fas fa-info-circle"></i>
+                    This disqualification is recorded in the examination system. 
+                    All decisions regarding examination attempts are final.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.card {
+    border-width: 2px;
+}
+.alert {
+    border-left-width: 5px;
+}
+.fa-times-circle {
+    animation: pulse 2s infinite;
+}
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+</style>
+{% endblock %}

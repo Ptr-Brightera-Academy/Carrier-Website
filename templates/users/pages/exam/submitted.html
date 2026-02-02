@@ -1,0 +1,52 @@
+{% extends "users/base.html" %}
+
+{% block title %}Exam Submitted | Ptr Brightera Academy{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-6">
+            <div class="card shadow-lg border-success">
+                <div class="card-header bg-success text-white text-center">
+                    <h3 class="mb-0">
+                        <i class="fas fa-check-circle"></i> Exam Submitted Successfully
+                    </h3>
+                </div>
+
+                <div class="card-body text-center">
+                    <div class="mb-4">
+                        <i class="fas fa-paper-plane fa-5x text-success mb-4"></i>
+                        <h4 class="text-success">Thank You!</h4>
+                        <p class="text-muted">Your exam has been submitted for grading.</p>
+                    </div>
+
+                    <div class="alert alert-info">
+                        <h5><i class="fas fa-clock"></i> What Happens Next?</h5>
+                        <ul class="list-unstyled text-start">
+                            <li class="mb-2"><i class="fas fa-check text-success"></i> Your exam has been submitted</li>
+                            <li class="mb-2"><i class="fas fa-spinner text-warning"></i> Auto-grading in progress...</li>
+                            <li class="mb-2"><i class="fas fa-user-check text-primary"></i> Instructor will review your answers</li>
+                            <li class="mb-0"><i class="fas fa-chart-line text-success"></i> Results will be published when ready</li>
+                        </ul>
+                    </div>
+
+                    <div class="alert alert-light">
+                        <p class="mb-0">
+                            <i class="fas fa-info-circle text-primary"></i>
+                            You will be notified when your results are published. 
+                            Check your dashboard for updates.
+                        </p>
+                    </div>
+
+                </div>
+
+                <div class="card-footer text-muted text-center small">
+                    <p class="mb-0">
+                        Questions about your submission? Contact your instructor.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

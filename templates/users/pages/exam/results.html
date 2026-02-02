@@ -1,0 +1,351 @@
+{% extends "users/base.html" %}
+
+{% block title %}Exam Results | Ptr Brightera Academy{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <!-- Header Card -->
+    <div class="card shadow-lg mb-4 border-primary">
+        <div class="card-header bg-primary text-white py-3">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h3 class="mb-0">
+                        <i class="fas fa-award"></i> Exam Results
+                    </h3>
+                    <p class="mb-0 opacity-75">{{ exam.title }}</p>
+                </div>
+                <div class="text-end">
+                    <span class="badge bg-success fs-6">
+                        <i class="fas fa-check-circle"></i> GRADED
+                    </span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card-body">
+            <!-- Score Summary -->
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="card text-center border-success h-100">
+                        <div class="card-body">
+                            <h6 class="text-muted mb-2">FINAL SCORE</h6>
+                            <div class="display-4 fw-bold text-success">{{ attempt.final_score|default(0) }}</div>
+                            <p class="text-muted mb-0">out of {{ exam.total_marks }}</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-3">
+                    <div class="card text-center border-info h-100">
+                        <div class="card-body">
+                            <h6 class="text-muted mb-2">PERCENTAGE</h6>
+                            <div class="display-4 fw-bold text-info">
+                                {{ ((attempt.final_score|default(0) / exam.total_marks * 100)|round(1)) if exam.total_marks > 0 else 0 }}%
+                            </div>
+                            <p class="text-muted mb-0">Performance</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-3">
+                    <div class="card text-center border-warning h-100">
+                        <div class="card-body">
+                            <h6 class="text-muted mb-2">AUTO SCORE</h6>
+                            <div class="display-4 fw-bold text-warning">{{ attempt.auto_score|default(0) }}</div>
+                            <p class="text-muted mb-0">Multiple Choice</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-3">
+                    <div class="card text-center border-secondary h-100">
+                        <div class="card-body">
+                            <h6 class="text-muted mb-2">MANUAL SCORE</h6>
+                            <div class="display-4 fw-bold text-secondary">{{ attempt.manual_score|default(0) }}</div>
+                            <p class="text-muted mb-0">Written Answers</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Progress Bar -->
+            <div class="mb-4">
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="fw-bold">Overall Performance</span>
+                    <span class="fw-bold">
+                        {{ ((attempt.final_score|default(0) / exam.total_marks * 100)|round(1)) if exam.total_marks > 0 else 0 }}%
+                    </span>
+                </div>
+                <div class="progress" style="height: 20px;">
+                    {% set percentage = ((attempt.final_score|default(0) / exam.total_marks * 100)|round(1)) if exam.total_marks > 0 else 0 %}
+                    {% if percentage >= 70 %}
+                        {% set bar_class = 'bg-success' %}
+                    {% elif percentage >= 50 %}
+                        {% set bar_class = 'bg-warning' %}
+                    {% else %}
+                        {% set bar_class = 'bg-danger' %}
+                    {% endif %}
+                    <div class="progress-bar {{ bar_class }} progress-bar-striped" 
+                         role="progressbar" 
+                         style="width: {{ percentage }}%;"
+                         aria-valuenow="{{ percentage }}" 
+                         aria-valuemin="0" 
+                         aria-valuemax="100">
+                        {{ percentage }}%
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Exam Details -->
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="card h-100">
+                        <div class="card-header bg-light">
+                            <h6 class="mb-0"><i class="fas fa-info-circle"></i> Exam Details</h6>
+                        </div>
+                        <div class="card-body">
+                            <table class="table table-sm">
+                                <tr>
+                                    <td><strong>Course:</strong></td>
+                                    <td>{{ exam.course_title }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Started:</strong></td>
+                                    <td>{{ attempt.started_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Submitted:</strong></td>
+                                    <td>{{ attempt.submitted_at.strftime('%Y-%m-%d %H:%M') if attempt.submitted_at else 'N/A' }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Graded On:</strong></td>
+                                    <td>
+                                        {% if grading_log %}
+                                            {{ grading_log.graded_at.strftime('%Y-%m-%d %H:%M') }}
+                                        {% else %}
+                                            N/A
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Graded By:</strong></td>
+                                    <td>
+                                        {% if grading_log and grading_log.graded_by_name %}
+                                            {{ grading_log.graded_by_name }}
+                                        {% else %}
+                                            Instructor
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="card h-100">
+                        <div class="card-header bg-light">
+                            <h6 class="mb-0"><i class="fas fa-chart-bar"></i> Performance Summary</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row text-center">
+                                <div class="col-4">
+                                    <div class="p-2">
+                                        <h4 class="text-primary">{{ correct_count }}</h4>
+                                        <small class="text-muted">Correct</small>
+                                    </div>
+                                </div>
+                                <div class="col-4">
+                                    <div class="p-2">
+                                        <h4 class="text-warning">{{ partial_count }}</h4>
+                                        <small class="text-muted">Partial</small>
+                                    </div>
+                                </div>
+                                <div class="col-4">
+                                    <div class="p-2">
+                                        <h4 class="text-danger">{{ incorrect_count }}</h4>
+                                        <small class="text-muted">Incorrect</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <hr>
+                            <div class="text-center">
+                                <small class="text-muted">
+                                    <i class="fas fa-clock"></i> 
+                                    Exam Duration: {{ exam.duration_minutes }} minutes
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Detailed Results -->
+    <div class="card shadow mb-4">
+        <div class="card-header bg-info text-white">
+            <h4 class="mb-0">
+                <i class="fas fa-list-check"></i> Detailed Question Review
+            </h4>
+        </div>
+        <div class="card-body">
+            {% if answers %}
+                {% for answer in answers %}
+                <div class="card mb-3 border-{% if answer.total_mark == answer.marks %}success{% elif answer.total_mark > 0 %}warning{% else %}danger{% endif %}">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            Question {{ loop.index }}
+                            <span class="badge bg-{% if answer.question_type == 'mcq' %}primary{% elif answer.question_type == 'short' %}info{% else %}secondary{% endif %} ms-2">
+                                {{ answer.question_type|upper }}
+                            </span>
+                        </h5>
+                        <div>
+                            <span class="badge bg-{% if answer.total_mark == answer.marks %}success{% elif answer.total_mark > 0 %}warning{% else %}danger{% endif %} fs-6">
+                                {{ answer.total_mark|default(0) }}/{{ answer.marks }}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <!-- Question -->
+                        <div class="mb-3">
+                            <h6 class="fw-bold text-dark">Question:</h6>
+                            <p class="mb-0">{{ answer.question_text }}</p>
+                        </div>
+                        
+                        <!-- Student's Answer -->
+                        <div class="mb-3">
+                            <h6 class="fw-bold text-dark">Your Answer:</h6>
+                            {% if answer.question_type == 'mcq' %}
+                                <div class="alert alert-light">
+                                    {% if answer.selected_option_text %}
+                                        <p class="mb-0">{{ answer.selected_option_text }}</p>
+                                        {% if answer.is_correct %}
+                                            <span class="badge bg-success mt-1"><i class="fas fa-check"></i> Correct</span>
+                                        {% else %}
+                                            <span class="badge bg-danger mt-1"><i class="fas fa-times"></i> Incorrect</span>
+                                        {% endif %}
+                                    {% else %}
+                                        <p class="text-muted mb-0"><i>No answer provided</i></p>
+                                    {% endif %}
+                                </div>
+                            {% else %}
+                                <div class="alert alert-light">
+                                    <p class="mb-0">{{ answer.answer_text or '<i class="text-muted">No answer provided</i>'|safe }}</p>
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <!-- Marks Breakdown -->
+                        <div class="row mb-3">
+                            <div class="col-md-4">
+                                <div class="card bg-light">
+                                    <div class="card-body text-center p-2">
+                                        <small class="text-muted">Auto Mark</small>
+                                        <div class="fw-bold">{{ answer.auto_mark|default(0) }}</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card bg-light">
+                                    <div class="card-body text-center p-2">
+                                        <small class="text-muted">Manual Mark</small>
+                                        <div class="fw-bold">{{ answer.manual_mark|default(0) }}</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card bg-light">
+                                    <div class="card-body text-center p-2">
+                                        <small class="text-muted">Total</small>
+                                        <div class="fw-bold">{{ answer.total_mark|default(0) }}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Feedback -->
+                        {% if answer.feedback %}
+                        <div class="alert alert-info">
+                            <h6 class="fw-bold mb-2"><i class="fas fa-comment"></i> Instructor Feedback:</h6>
+                            <p class="mb-0">{{ answer.feedback }}</p>
+                        </div>
+                        {% endif %}
+                        
+                        <!-- Time Taken -->
+                        <div class="text-end small text-muted">
+                            {% if answer.time_taken_seconds %}
+                                Time taken: {{ answer.time_taken_seconds }} seconds
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="alert alert-warning text-center">
+                    <i class="fas fa-exclamation-circle fa-2x mb-3"></i>
+                    <h5>No answers found for this attempt.</h5>
+                    <p class="mb-0">Please contact your instructor if you believe this is an error.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <!-- Instructor Notes (if any) -->
+    {% if grading_log and grading_log.notes %}
+    <div class="card shadow border-warning mb-4">
+        <div class="card-header bg-warning text-dark">
+            <h5 class="mb-0">
+                <i class="fas fa-sticky-note"></i> Instructor's Notes
+            </h5>
+        </div>
+        <div class="card-body">
+            <p class="mb-0">{{ grading_log.notes }}</p>
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- Action Buttons -->
+    <div class="text-center mt-4">
+        <a href="{{ url_for('quizes') }}" class="btn btn-primary btn-lg">
+            <i class="fas fa-arrow-left"></i> Back to Exams
+        </a>
+        <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary btn-lg ms-3">
+            <i class="fas fa-tachometer-alt"></i> Dashboard
+        </a>
+        <button onclick="window.print()" class="btn btn-outline-info btn-lg ms-3">
+            <i class="fas fa-print"></i> Print Results
+        </button>
+    </div>
+</div>
+
+<!-- Print Styles -->
+<style media="print">
+    .btn, .badge, .progress {
+        display: none !important;
+    }
+    .card {
+        border: 1px solid #ddd !important;
+        break-inside: avoid;
+    }
+    .card-header {
+        background-color: #f8f9fa !important;
+        color: #000 !important;
+    }
+</style>
+
+<style>
+.progress-bar {
+    transition: width 0.6s ease;
+}
+.card {
+    transition: transform 0.2s;
+}
+.card:hover {
+    transform: translateY(-2px);
+}
+.badge {
+    font-size: 0.8em;
+}
+</style>
+{% endblock %}

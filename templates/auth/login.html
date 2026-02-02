@@ -11,17 +11,14 @@
 
         {% with messages = get_flashed_messages() %}
           {% if messages %}
+            {% set message = messages[-1] %}  {# take the last message only #}
             <div style="position: fixed; top: 80px; left: 50%; transform: translateX(-50%); z-index: 1050; width: 30%; max-width: 300px;">
-              <div class="alert alert-danger text-center py-2 px-2 mb-0" style="font-size: 0.9rem;">
-                {% for message in messages %}
-                  <p class="mb-0">{{ message }}</p>
-                {% endfor %}
+              <div class="alert alert-{{ 'success' if 'success' in message|lower else 'danger' }} text-center py-2 px-2 mb-0" style="font-size: 0.9rem;">
+                <p class="mb-0">{{ message }}</p>
               </div>
             </div>
           {% endif %}
         {% endwith %}
-
-
 
         <div class="container">
           <div class="form-login mt-5">

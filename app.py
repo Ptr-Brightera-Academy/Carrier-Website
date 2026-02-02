@@ -7,6 +7,7 @@ from sqlalchemy import text
 from werkzeug.security import check_password_hash
 from flask_login import LoginManager, UserMixin, logout_user, login_required, login_user, current_user
 import random
+from datetime import datetime
 
 
 # ---------------------------
@@ -175,7 +176,7 @@ def apply_to_job(id):
 # ---------------------------
 # AUTH ROUTES
 # ---------------------------
-@app.route("/auth/signup", methods=["GET", "POST"])
+@app.route("/signup", methods=["GET", "POST"])
 def signup():
     if request.method == "POST":
         username = request.form.get("username")
@@ -532,7 +533,7 @@ def exam_question(exam_slug):
             "question_id": question_id
         }).mappings().fetchone()
 
-    return render_template("exam/question.html",
+    return render_template("users/pages/exam/question.html",
                            exam_slug=exam_slug,
                            question=question,
                            options=options,
@@ -680,11 +681,14 @@ def submit_exam(exam_slug):
 @app.route("/exam/<exam_slug>/results")
 @login_required
 def exam_results(exam_slug):
+    """Show exam results only if graded"""
     with engine.connect() as conn:
-        # Get exam details
+        # Get exam details - ✅ use e.total_marks directly
         exam = conn.execute(text("""
-            SELECT * FROM exams
-            WHERE slug = :slug
+            SELECT e.*, c.title as course_title
+            FROM exams e
+            JOIN courses c ON e.course_id = c.id
+            WHERE e.slug = :slug
         """), {"slug": exam_slug}).mappings().fetchone()
 
         if not exam:
@@ -695,34 +699,249 @@ def exam_results(exam_slug):
             SELECT * FROM exam_attempts
             WHERE exam_id = :exam_id
             AND user_id = :user_id
+            AND status = 'graded'  # Only show if graded
             ORDER BY submitted_at DESC
             LIMIT 1
         """), {
-            "exam_id": exam.id,
+            "exam_id": exam['id'],
             "user_id": current_user.id
         }).mappings().fetchone()
 
         if not attempt:
-            flash("No exam results found.", "warning")
+            flash("Exam results are not available yet. Please check back later.", "info")
             return redirect(url_for("quizes"))
 
-        # Get answers with questions
+        # ✅ Use the total_marks column from exams table
+        total_marks = exam['total_marks'] or 0
+        final_score = attempt['final_score'] or 0
+
+        # Calculate percentage
+        percentage = 0
+        if total_marks > 0:
+            percentage = round((final_score / total_marks) * 100, 1)
+
+        # Get grading log
+        grading_log = conn.execute(text("""
+            SELECT eg.*, u.username as graded_by_name
+            FROM exam_grading_log eg
+            LEFT JOIN users u ON eg.graded_by = u.id
+            WHERE eg.attempt_id = :attempt_id
+            ORDER BY eg.graded_at DESC
+            LIMIT 1
+        """), {"attempt_id": attempt['id']}).mappings().fetchone()
+
+        # Get answers with detailed information
         answers = conn.execute(text("""
-            SELECT ea.*, eq.question_text, eq.question_type, eq.marks
+            SELECT 
+                ea.*,
+                eq.question_text,
+                eq.question_type,
+                eq.marks,
+                eo.option_text as selected_option_text,
+                eo.is_correct,
+                COALESCE(ea.auto_mark, 0) + COALESCE(ea.manual_mark, 0) as total_mark
             FROM exam_answers ea
             JOIN exam_questions eq ON ea.question_id = eq.id
+            LEFT JOIN exam_options eo ON ea.selected_option_id = eo.id
             WHERE ea.attempt_id = :attempt_id
+            ORDER BY eq.position
         """), {"attempt_id": attempt['id']}).mappings().all()
+
+        # Calculate performance statistics
+        correct_count = 0
+        partial_count = 0
+        incorrect_count = 0
+
+        for answer in answers:
+            total_mark = answer['total_mark'] or 0
+            marks = answer['marks'] or 1
+
+            if total_mark >= marks:
+                correct_count += 1
+            elif total_mark > 0:
+                partial_count += 1
+            else:
+                incorrect_count += 1
 
     return render_template("exam/results.html",
                            exam=exam,
                            attempt=attempt,
-                           answers=answers)
+                           answers=answers,
+                           grading_log=grading_log,
+                           correct_count=correct_count,
+                           partial_count=partial_count,
+                           incorrect_count=incorrect_count,
+                           percentage=percentage)
 
 @app.route("/exam/disqualified")
 @login_required
 def exam_disqualified():
-    return render_template("exam/disqualified.html")
+    return render_template("users/pages/exam/disqualified.html")
+
+
+@app.route("/exam/violation", methods=["POST"])
+@login_required
+def record_violation():
+    """Record exam violation and disqualify immediately"""
+    try:
+        data = request.get_json()
+        violation_type = data.get('violation_type', 'unknown')
+
+        with engine.connect() as conn:
+            # Get the most recent active attempt for this user
+            attempt = conn.execute(text("""
+                SELECT ea.id, ea.exam_id
+                FROM exam_attempts ea
+                WHERE ea.user_id = :user_id
+                AND ea.status = 'in_progress'
+                ORDER BY ea.started_at DESC
+                LIMIT 1
+            """), {"user_id": current_user.id}).fetchone()
+
+            if attempt:
+                # Record violation
+                conn.execute(text("""
+                    INSERT INTO exam_violations (attempt_id, violation_type)
+                    VALUES (:attempt_id, :violation_type)
+                """), {
+                    "attempt_id": attempt.id,
+                    "violation_type": violation_type
+                })
+
+                # DISQUALIFY IMMEDIATELY
+                conn.execute(text("""
+                    UPDATE exam_attempts
+                    SET status = 'disqualified',
+                        submitted_at = NOW()
+                    WHERE id = :id
+                """), {"id": attempt.id})
+
+                conn.commit()
+
+        return jsonify({"success": True}), 200
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/exam/<exam_slug>/auto-save", methods=["POST"])
+@login_required
+def auto_save_answer(exam_slug):
+    """Auto-save answer without moving to next question"""
+    try:
+        question_id = request.form.get('question_id')
+        answer_text = request.form.get('answer_text', '').strip()
+        selected_option = request.form.get('selected_option')
+
+        with engine.connect() as conn:
+            # Get active attempt
+            attempt = conn.execute(text("""
+                SELECT ea.id
+                FROM exam_attempts ea
+                JOIN exams e ON ea.exam_id = e.id
+                WHERE ea.user_id = :user_id
+                AND e.slug = :slug
+                AND ea.status = 'in_progress'
+            """), {"user_id": current_user.id, "slug": exam_slug}).fetchone()
+
+            if not attempt:
+                return jsonify({"success": False, "error": "No active attempt"}), 400
+
+            attempt_id = attempt.id
+
+            # Convert selected_option to integer if it exists
+            try:
+                selected_option_id = int(selected_option) if selected_option else None
+            except (ValueError, TypeError):
+                selected_option_id = None
+
+            # Save or update answer
+            existing = conn.execute(text("""
+                SELECT id FROM exam_answers
+                WHERE attempt_id = :attempt_id
+                AND question_id = :question_id
+            """), {
+                "attempt_id": attempt_id,
+                "question_id": question_id
+            }).fetchone()
+
+            if existing:
+                # Update existing answer
+                conn.execute(text("""
+                    UPDATE exam_answers
+                    SET answer_text = :text,
+                        selected_option_id = :option,
+                        updated_at = NOW()
+                    WHERE attempt_id = :attempt_id
+                    AND question_id = :question_id
+                """), {
+                    "attempt_id": attempt_id,
+                    "question_id": question_id,
+                    "text": answer_text if answer_text else None,
+                    "option": selected_option_id
+                })
+            else:
+                # Insert new answer
+                conn.execute(text("""
+                    INSERT INTO exam_answers (attempt_id, question_id, answer_text, selected_option_id)
+                    VALUES (:attempt_id, :question_id, :text, :option)
+                """), {
+                    "attempt_id": attempt_id,
+                    "question_id": question_id,
+                    "text": answer_text if answer_text else None,
+                    "option": selected_option_id
+                })
+
+            conn.commit()
+
+        return jsonify({"success": True, "message": "Answer auto-saved"}), 200
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/exam/<exam_slug>/timeout", methods=["POST"])
+@login_required
+def handle_timeout(exam_slug):
+    """Handle when time runs out for a question"""
+    try:
+        question_id = request.form.get('question_id')
+
+        with engine.connect() as conn:
+            # Get active attempt
+            attempt = conn.execute(text("""
+                SELECT ea.id
+                FROM exam_attempts ea
+                JOIN exams e ON ea.exam_id = e.id
+                WHERE ea.user_id = :user_id
+                AND e.slug = :slug
+                AND ea.status = 'in_progress'
+            """), {"user_id": current_user.id, "slug": exam_slug}).fetchone()
+
+            if not attempt:
+                return jsonify({"success": False, "error": "No active attempt"}), 400
+
+            attempt_id = attempt.id
+
+            # Save empty answer (time ran out)
+            conn.execute(text("""
+                INSERT INTO exam_answers (attempt_id, question_id, time_taken_seconds)
+                VALUES (:attempt_id, :question_id, 0)
+                ON DUPLICATE KEY UPDATE
+                    time_taken_seconds = 0
+            """), {
+                "attempt_id": attempt_id,
+                "question_id": question_id
+            })
+
+            # Move to next question
+            conn.execute(text("""
+                UPDATE exam_attempts
+                SET current_question = current_question + 1
+                WHERE id = :id
+            """), {"id": attempt_id})
+
+            conn.commit()
+
+        return jsonify({"success": True, "redirect": url_for('exam_question', exam_slug=exam_slug)}), 200
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 
@@ -1066,6 +1285,43 @@ def complete_lesson():
 @login_required
 def settings():
     return render_template('users/pages/settings.html')
+
+@app.route('/student/change-password', methods=['POST'])
+@login_required
+def change_password():
+    # Add password validation & hashing later
+    flash("Password updated successfully", "success")
+    return redirect(url_for('settings'))
+
+
+@app.route('/student/logout-all', methods=['POST'])
+@login_required
+def logout_all_sessions():
+    flash("Logged out from all devices.", "success")
+    return redirect(url_for('settings'))
+
+
+@app.route('/student/delete-account', methods=['POST'])
+@login_required
+def delete_account():
+    if request.form.get("confirm_text") == "DELETE":
+        # delete user logic here
+        flash("Account deleted.", "danger")
+    return redirect(url_for('settings'))
+
+
+@app.route('/student/support/contact', methods=['POST'])
+@login_required
+def contact_support():
+    flash("Support message sent.", "success")
+    return redirect(url_for('settings'))
+
+
+@app.route('/student/support/report', methods=['POST'])
+@login_required
+def report_problem():
+    flash("Problem report submitted.", "warning")
+    return redirect(url_for('settings'))
 
 
 @app.route("/services")

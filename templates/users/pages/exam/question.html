@@ -1,44 +1,851 @@
-<h4>Question {{ question_number }} of {{ total_questions }}</h4>
-<div class="alert alert-info">
-  Time left: <span id="timer">{{ question.time_limit_seconds }}</span> seconds
+{% extends "users/base.html" %}
+
+{% block title %}Exam Question | Ptr Brightera Academy{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <!-- Single Flash Message - Only shows latest -->
+    <div id="flash-message-container" class="position-fixed top-0 start-50 translate-middle-x mt-3" style="z-index: 9999; width: 90%; max-width: 500px;">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% set category, message = messages[-1] %} <!-- Get only the latest message -->
+                <div class="alert alert-{{ category }} alert-dismissible fade show shadow-lg" role="alert" id="current-flash-message">
+                    <div class="d-flex align-items-center">
+                        <i class="fas 
+                            {% if category == 'success' %}fa-check-circle 
+                            {% elif category == 'danger' %}fa-exclamation-circle 
+                            {% elif category == 'warning' %}fa-exclamation-triangle 
+                            {% else %}fa-info-circle{% endif %} 
+                            me-2"></i>
+                        <div class="flex-grow-1">{{ message }}</div>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                </div>
+            {% endif %}
+        {% endwith %}
+    </div>
+
+    <div class="row">
+        <div class="col-md-10 col-lg-8 mx-auto">
+            <!-- Exam Header Card -->
+            <div class="card exam-card shadow-lg border-0 mb-4">
+                <div class="card-header bg-gradient-primary text-white py-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h4 class="mb-0">
+                                <i class="fas fa-file-alt me-2"></i>
+                                Question {{ question_number }} of {{ total_questions }}
+                            </h4>
+                        </div>
+                        <div class="text-end">
+                            <div class="badge bg-white text-primary px-3 py-2">
+                                <i class="fas fa-clock me-1"></i>
+                                <span id="timer" class="fw-bold">{{ question.time_limit_seconds if question.time_limit_seconds else '∞' }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card-body p-4">
+                    <!-- Timer Warning Section -->
+                    {% if question.time_limit_seconds and question.time_limit_seconds > 0 %}
+                    <div class="alert alert-warning mb-4">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-hourglass-half fa-lg me-3"></i>
+                            <div>
+                                <h6 class="mb-1">Time Limit: <span id="timer-display" class="fw-bold">{{ question.time_limit_seconds }} seconds</span></h6>
+                                <p class="mb-0 small">Answer will auto-submit when time expires</p>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Question Form -->
+                    <form method="POST" action="{{ url_for('save_answer', exam_slug=exam_slug) }}" id="examForm">
+                        <input type="hidden" name="question_id" value="{{ question.id }}">
+                        
+                        <!-- Question Display -->
+                        <div class="question-container mb-5">
+                            <div class="question-header mb-4">
+                                <h5 class="fw-bold text-dark mb-3">
+                                    <span class="question-number-badge bg-primary text-white rounded-circle d-inline-flex align-items-center justify-content-center me-3" style="width: 36px; height: 36px;">
+                                        {{ question_number }}
+                                    </span>
+                                    {{ question.question_text }}
+                                </h5>
+                                <div class="question-meta d-flex gap-3 mb-3">
+                                    <span class="badge bg-{% if question.question_type == 'mcq' %}primary{% elif question.question_type == 'short' %}info{% else %}secondary{% endif %}">
+                                        {{ question.question_type|upper }}
+                                    </span>
+                                    <span class="badge bg-light text-dark border">
+                                        {{ question.marks }} mark{{ 's' if question.marks > 1 else '' }}
+                                    </span>
+                                </div>
+                            </div>
+                            
+                            <!-- Answer Input Area -->
+                            <div class="answer-area">
+                                {% if question.question_type == 'mcq' %}
+                                    <!-- MCQ Options -->
+                                    <div class="options-container">
+                                        {% for opt in options %}
+                                        <div class="option-card mb-2">
+                                            <input type="radio" 
+                                                   class="btn-check" 
+                                                   name="selected_option" 
+                                                   id="option{{ opt.id }}" 
+                                                   value="{{ opt.id }}"
+                                                   {% if existing_answer and existing_answer.selected_option_id == opt.id %}checked{% endif %}>
+                                            <label class="option-label btn btn-outline-primary w-100 text-start py-3 px-4 rounded-3" for="option{{ opt.id }}">
+                                                <div class="d-flex align-items-center">
+                                                    <div class="option-letter me-3 fw-bold text-muted">
+                                                        {% set letter_map = {1: 'A', 2: 'B', 3: 'C', 4: 'D', 5: 'E', 6: 'F'} %}
+                                                        {{ letter_map.get(loop.index, loop.index) }}
+                                                    </div>
+                                                    <div class="option-text flex-grow-1">{{ opt.option_text }}</div>
+                                                    <div class="option-check ms-3">
+                                                        <i class="fas fa-check-circle text-success"></i>
+                                                    </div>
+                                                </div>
+                                            </label>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                {% elif question.question_type == 'short' %}
+                                    <!-- Short Answer -->
+                                    <div class="short-answer-container">
+                                        <textarea name="answer_text" 
+                                                  class="form-control answer-textarea" 
+                                                  placeholder="Type your answer here..."
+                                                  id="shortAnswer"
+                                                  rows="4">{% if existing_answer %}{{ existing_answer.answer_text or '' }}{% endif %}</textarea>
+                                    </div>
+                                {% elif question.question_type == 'long' %}
+                                    <!-- Long Answer -->
+                                    <div class="long-answer-container">
+                                        <textarea name="answer_text" 
+                                                  class="form-control answer-textarea" 
+                                                  placeholder="Provide detailed explanation..."
+                                                  id="longAnswer"
+                                                  rows="8">{% if existing_answer %}{{ existing_answer.answer_text or '' }}{% endif %}</textarea>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="action-buttons mt-4 pt-3 border-top">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div class="save-status" id="saveStatus">
+                                    <small class="text-muted">
+                                        <i class="fas fa-save me-1"></i>
+                                        <span id="lastSaved">Auto-save active</span>
+                                    </small>
+                                </div>
+                                
+                                <div>
+                                    {% if question_number < total_questions %}
+                                    <button type="submit" class="btn btn-primary px-4 py-2">
+                                        Save & Continue <i class="fas fa-arrow-right ms-2"></i>
+                                    </button>
+                                    {% else %}
+                                    <button type="button" 
+                                            onclick="submitExam()" 
+                                            class="btn btn-success px-4 py-2">
+                                        <i class="fas fa-check-circle me-2"></i> Submit Exam
+                                    </button>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Progress Section -->
+            <div class="progress-section">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h6 class="mb-0 text-muted">Exam Progress</h6>
+                            <small class="text-muted">{{ question_number }}/{{ total_questions }}</small>
+                        </div>
+                        <div class="progress" style="height: 8px;">
+                            <div class="progress-bar bg-gradient-success" 
+                                 role="progressbar" 
+                                 style="width: {{ (question_number / total_questions * 100)|int }}%;"
+                                 aria-valuenow="{{ question_number }}" 
+                                 aria-valuemin="1" 
+                                 aria-valuemax="{{ total_questions }}">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Security Notice -->
+            <div class="security-notice mt-4">
+                <div class="alert alert-danger border">
+                    <div class="d-flex align-items-center">
+                        <i class="fas fa-shield-alt me-3"></i>
+                        <div>
+                            <strong>Important:</strong> This exam is proctored. Switching tabs, copying, or using unauthorized tools will result in immediate disqualification.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
-<form method="POST" action="{{ url_for('save_answer', attempt_id=attempt.id) }}" id="examForm">
-  <input type="hidden" name="question_id" value="{{ question.id }}">
-
-  <p>{{ question.question_text }}</p>
-
-  {% if question.question_type == 'mcq' %}
-    {% for opt in options %}
-      <label><input type="radio" name="selected_option" value="{{ opt.id }}"> {{ opt.option_text }}</label><br>
-    {% endfor %}
-  {% else %}
-    <textarea name="answer_text" class="form-control"></textarea>
-  {% endif %}
-
-  <button class="btn btn-primary mt-3">Next</button>
-</form>
 <script>
-let timeLeft = {{ question.time_limit_seconds or 0 }};
-let timer = setInterval(function () {
-    if (timeLeft <= 0) {
-        clearInterval(timer);
-        document.getElementById("examForm").submit();
-    }
-    document.getElementById("timer").innerText = timeLeft;
-    timeLeft--;
-}, 1000);
+// Professional exam monitoring system
+let examState = {
+    isAutoSubmitting: false,
+    isCheatingDetected: false,
+    isConfirming: false,  // Add this flag for confirmation dialogs
+    lastSaveTime: new Date(),
+    saveInterval: null,
+    violationCount: 0
+};
 
-// Tab / window switch detection
-let violationSent = false;
-function sendViolation(type) {
-    if (violationSent) return;
-    violationSent = true;
-    navigator.sendBeacon("/exam/violation", JSON.stringify({type: type}));
-    alert("You left the exam. Disqualified.");
-    window.location.href = "/exam/disqualified";
+// Initialize exam session
+document.addEventListener('DOMContentLoaded', function() {
+    // Auto-remove flash message after 3 seconds
+    const flashMessage = document.getElementById('current-flash-message');
+    if (flashMessage) {
+        setTimeout(() => {
+            flashMessage.classList.remove('show');
+            setTimeout(() => flashMessage.remove(), 500);
+        }, 3000);
+    }
+    
+    // Initialize auto-save
+    startAutoSave();
+});
+
+// Professional notification system
+function showNotification(title, message, type = 'info', duration = 3000) {
+    const notification = document.createElement('div');
+    notification.className = `alert alert-${type} alert-dismissible fade show position-fixed shadow-lg notification-message`;
+    notification.style.cssText = `
+        top: 20px;
+        right: 20px;
+        z-index: 9999;
+        max-width: 350px;
+        animation: slideInRight 0.3s ease-out;
+    `;
+    
+    notification.innerHTML = `
+        <div class="d-flex">
+            <div class="flex-shrink-0">
+                <i class="fas ${type === 'warning' ? 'fa-exclamation-triangle' : 
+                                 type === 'danger' ? 'fa-ban' : 
+                                 type === 'success' ? 'fa-check-circle' : 'fa-info-circle'} 
+                    fa-lg mt-1"></i>
+            </div>
+            <div class="flex-grow-1 ms-3">
+                <h6 class="alert-heading mb-1 fw-bold">${title}</h6>
+                <p class="mb-0 small">${message}</p>
+            </div>
+            <button type="button" class="btn-close btn-sm" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+    
+    // Remove any existing notifications
+    document.querySelectorAll('.notification-message').forEach(n => n.remove());
+    
+    document.body.appendChild(notification);
+    
+    // Auto-remove after duration
+    if (duration > 0) {
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.classList.remove('show');
+                setTimeout(() => notification.remove(), 500);
+            }
+        }, duration);
+    }
+    
+    return notification;
 }
 
-document.addEventListener("visibilitychange", () => { if (document.hidden) sendViolation("tab_switch"); });
-window.addEventListener("blur", () => sendViolation("window_blur"));
+// Update save status
+function updateSaveStatus(saved = true) {
+    const statusEl = document.getElementById('saveStatus');
+    const lastSavedEl = document.getElementById('lastSaved');
+    
+    if (saved) {
+        examState.lastSaveTime = new Date();
+        lastSavedEl.innerHTML = `<i class="fas fa-check text-success"></i> Saved ${examState.lastSaveTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
+        statusEl.classList.add('text-success');
+        statusEl.classList.remove('text-danger');
+    } else {
+        lastSavedEl.innerHTML = `<i class="fas fa-exclamation-triangle text-warning"></i> Save failed`;
+        statusEl.classList.add('text-danger');
+        statusEl.classList.remove('text-success');
+    }
+}
+
+// Auto-save system
+function startAutoSave() {
+    examState.saveInterval = setInterval(() => {
+        if (!examState.isAutoSubmitting) {
+            autoSaveAnswer();
+        }
+    }, 20000);
+}
+
+function autoSaveAnswer() {
+    if (examState.isAutoSubmitting || examState.isCheatingDetected) return;
+    
+    const form = document.getElementById('examForm');
+    if (!form) return;
+
+    const formData = new FormData(form);
+    formData.append('auto_save', 'true');
+
+    fetch("{{ url_for('auto_save_answer', exam_slug=exam_slug) }}", {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            updateSaveStatus(true);
+            // Show save notification occasionally
+            if (Math.random() < 0.3) { // 30% chance to show save notification
+                showNotification('Auto-saved', 'Your answer has been saved.', 'success', 2000);
+            }
+        } else {
+            updateSaveStatus(false);
+            showNotification('Save Failed', 'Could not save your answer. Please check your connection.', 'warning', 3000);
+        }
+    })
+    .catch(error => {
+        console.error('Auto-save failed:', error);
+        updateSaveStatus(false);
+    });
+}
+
+// Time management system
+{% if question.time_limit_seconds and question.time_limit_seconds > 0 %}
+let timeLeft = {{ question.time_limit_seconds }};
+let timerElement = document.getElementById("timer");
+let timerDisplay = document.getElementById("timer-display");
+let timerInterval;
+let timeWarningShown = false;
+
+function startTimer() {
+    timerInterval = setInterval(updateTimer, 1000);
+    updateTimer();
+}
+
+function updateTimer() {
+    if (timeLeft <= 0) {
+        clearInterval(timerInterval);
+        handleTimeOut();
+        return;
+    }
+    
+    // Update timer displays
+    if (timerElement && timerDisplay) {
+        const minutes = Math.floor(timeLeft / 60);
+        const seconds = timeLeft % 60;
+        const timeString = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        timerElement.textContent = timeString;
+        timerDisplay.textContent = timeString;
+        
+        // Show time warnings
+        if (timeLeft === 30 && !timeWarningShown) {
+            showNotification('Time Warning', '30 seconds remaining!', 'warning', 3000);
+            timeWarningShown = true;
+        }
+        if (timeLeft === 10) {
+            showNotification('Time Almost Up', '10 seconds remaining!', 'danger', 2000);
+            timerElement.classList.add('text-danger', 'fw-bold', 'pulse-animation');
+            timerDisplay.classList.add('text-danger', 'fw-bold');
+        }
+        
+        // Visual feedback
+        if (timeLeft <= 30) {
+            timerElement.classList.add('text-warning');
+            timerDisplay.classList.add('text-warning');
+        }
+    }
+    
+    // Strategic auto-saves
+    if (timeLeft === 60 || timeLeft === 30 || timeLeft === 10) {
+        autoSaveAnswer();
+    }
+    
+    timeLeft--;
+}
+
+function handleTimeOut() {
+    if (examState.isAutoSubmitting || examState.isCheatingDetected) return;
+    
+    examState.isAutoSubmitting = true;
+    showNotification('Time Expired', 'Time limit reached. Answer is being submitted...', 'info', 2000);
+    
+    const form = document.getElementById('examForm');
+    if (!form) {
+        window.location.reload();
+        return;
+    }
+
+    const formData = new FormData(form);
+    formData.append('auto_timeout', 'true');
+    
+    // Sequential: Save → Move to next
+    fetch("{{ url_for('auto_save_answer', exam_slug=exam_slug) }}", {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showNotification('Answer Saved', 'Your answer has been saved.', 'success', 1500);
+            return fetch("{{ url_for('handle_timeout', exam_slug=exam_slug) }}", {
+                method: 'POST',
+                body: formData
+            });
+        }
+        throw new Error('Auto-save failed');
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success && data.redirect) {
+            window.location.href = data.redirect;
+        } else {
+            form.submit();
+        }
+    })
+    .catch(error => {
+        console.error('Timeout process failed:', error);
+        form.submit();
+    })
+    .finally(() => {
+        examState.isAutoSubmitting = false;
+    });
+}
+
+// Start the timer
+startTimer();
+{% endif %}
+
+// Anti-cheating system with notifications
+function detectAndHandleViolation(reason, violationType) {
+    if (examState.isAutoSubmitting || examState.isCheatingDetected || examState.isConfirming) return;
+    
+    examState.violationCount++;
+    examState.isCheatingDetected = true;
+    
+    // Show immediate violation warning
+    showNotification(
+        'Exam Violation Detected',
+        `${reason}. This incident has been recorded.`,
+        'danger',
+        3000
+    );
+    
+    // Immediate disqualification after short delay
+    setTimeout(() => {
+        disqualifyExam(violationType);
+    }, 1500);
+}
+
+function disqualifyExam(violationType) {
+    showNotification(
+        'Exam Disqualified',
+        'Your exam has been terminated due to violation of examination rules.',
+        'danger',
+        4000
+    );
+    
+    fetch("/exam/violation", {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            attempt_id: "{{ attempt.id }}",
+            violation_type: violationType,
+            timestamp: new Date().toISOString()
+        })
+    })
+    .then(() => {
+        setTimeout(() => {
+            window.location.href = "{{ url_for('exam_disqualified') }}";
+        }, 2000);
+    })
+    .catch(error => {
+        console.error('Violation recording failed:', error);
+        window.location.href = "{{ url_for('exam_disqualified') }}";
+    });
+}
+
+// Enhanced violation detection - check if we're in confirmation mode
+document.addEventListener('visibilitychange', function() {
+    if (document.hidden && !examState.isConfirming) {
+        detectAndHandleViolation('Tab/window switch detected', 'tab_switch');
+    }
+});
+
+window.addEventListener('blur', function() {
+    if (!examState.isConfirming) {
+        detectAndHandleViolation('Window focus lost', 'window_switch');
+    }
+});
+
+// Developer tools detection
+(function detectDevTools() {
+    const element = new Image();
+    Object.defineProperty(element, 'id', {
+        get: function() {
+            detectAndHandleViolation('Developer tools detected', 'dev_tools');
+            return true;
+        }
+    });
+    console.log('%c', element);
+})();
+
+// Enhanced input protection
+document.addEventListener('contextmenu', function(e) {
+    e.preventDefault();
+    detectAndHandleViolation('Right-click attempt detected', 'right_click');
+});
+
+document.addEventListener('selectstart', function(e) {
+    e.preventDefault();
+});
+
+document.addEventListener('copy', function(e) {
+    e.preventDefault();
+    detectAndHandleViolation('Copy attempt detected', 'copy_paste');
+});
+
+document.addEventListener('paste', function(e) {
+    e.preventDefault();
+    detectAndHandleViolation('Paste attempt detected', 'copy_paste');
+});
+
+// Keyboard shortcut protection
+document.addEventListener('keydown', function(e) {
+    const forbiddenKeys = {
+        123: 'F12', // Developer tools
+        116: 'F5',  // Refresh
+        82: 'R',    // Refresh with Ctrl/Cmd
+        73: 'I',    // Inspect with Ctrl/Cmd+Shift
+        74: 'J',    // Console with Ctrl/Cmd+Shift
+        85: 'U',    // View source with Ctrl/Cmd
+        83: 'S',    // Save with Ctrl/Cmd
+        80: 'P',    // Print with Ctrl/Cmd
+        67: 'C'     // Copy with Ctrl/Cmd
+    };
+    
+    const key = e.keyCode || e.which;
+    if (forbiddenKeys[key] && 
+        (e.ctrlKey || e.metaKey || e.shiftKey || key === 123 || key === 116)) {
+        e.preventDefault();
+        e.stopPropagation();
+        detectAndHandleViolation(`Forbidden shortcut used`, 'keyboard_shortcut');
+        return false;
+    }
+    
+    if (key === 44) { // Print Screen
+        e.preventDefault();
+        detectAndHandleViolation('Screenshot attempt detected', 'screenshot');
+        return false;
+    }
+});
+
+// Exam submission with modal (no blur event)
+function submitExam() {
+    // Set confirming flag to prevent false cheating detection
+    examState.isConfirming = true;
+    
+    // Create and show confirmation modal
+    const modalHTML = `
+        <div class="modal fade" id="submitConfirmModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content border-0 shadow-lg">
+                    <div class="modal-header bg-gradient-primary text-white border-0">
+                        <h5 class="modal-title">
+                            <i class="fas fa-check-circle me-2"></i>
+                            Submit Exam
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body py-4">
+                        <div class="alert alert-warning mb-3">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            <strong>Important:</strong> Once submitted, you cannot go back to this exam.
+                        </div>
+                        <p class="mb-0">Are you sure you want to submit your exam?</p>
+                    </div>
+                    <div class="modal-footer border-0">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+                            <i class="fas fa-times me-2"></i> Cancel
+                        </button>
+                        <button type="button" class="btn btn-success" id="confirmSubmitBtn">
+                            <i class="fas fa-check me-2"></i> Yes, Submit Exam
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Remove any existing modal
+    document.querySelectorAll('#submitConfirmModal').forEach(el => el.remove());
+    
+    // Add modal to DOM
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+    
+    // Get modal instance
+    const modalEl = document.getElementById('submitConfirmModal');
+    const modal = new bootstrap.Modal(modalEl);
+    
+    // Show modal
+    modal.show();
+    
+    // Handle confirm button
+    document.getElementById('confirmSubmitBtn').onclick = function() {
+        examState.isConfirming = false;
+        modal.hide();
+        
+        // Show submitting notification
+        const submittingNotification = showNotification(
+            'Submitting...', 
+            'Your exam is being submitted.', 
+            'info', 
+            2000
+        );
+        
+        // Small delay to ensure notification is seen
+        setTimeout(() => {
+            window.location.href = "{{ url_for('submit_exam', exam_slug=exam_slug) }}";
+        }, 500);
+    };
+    
+    // Handle modal hide (when user clicks cancel or X)
+    modalEl.addEventListener('hidden.bs.modal', function() {
+        examState.isConfirming = false;
+        // Remove modal from DOM after animation
+        setTimeout(() => {
+            modalEl.remove();
+        }, 300);
+    });
+    
+    // Show notification about submission
+    showNotification(
+        'Submit Exam',
+        'Please confirm if you want to submit the exam.',
+        'warning',
+        3000
+    );
+}
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', function(e) {
+    if (!examState.isAutoSubmitting && !examState.isCheatingDetected && !examState.isConfirming) {
+        autoSaveAnswer();
+    }
+});
+
+// Clear intervals on exit
+window.addEventListener('unload', function() {
+    if (examState.saveInterval) clearInterval(examState.saveInterval);
+    if (timerInterval) clearInterval(timerInterval);
+});
 </script>
+
+<style>
+/* Clean, professional styling */
+.exam-card {
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.bg-gradient-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.bg-gradient-success {
+    background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+}
+
+.question-number-badge {
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.option-card {
+    transition: all 0.2s;
+}
+
+.option-label {
+    border: 2px solid #dee2e6;
+    transition: all 0.2s;
+}
+
+.option-label:hover {
+    border-color: #667eea;
+    background-color: rgba(102, 126, 234, 0.05);
+}
+
+.btn-check:checked + .option-label {
+    border-color: #667eea;
+    background-color: rgba(102, 126, 234, 0.1);
+    color: #667eea;
+    font-weight: 500;
+}
+
+.btn-check:checked + .option-label .option-check {
+    display: block !important;
+}
+
+.option-check {
+    display: none;
+}
+
+.answer-textarea {
+    border-radius: 8px;
+    border: 2px solid #e9ecef;
+    transition: border-color 0.2s;
+    padding: 12px;
+}
+
+.answer-textarea:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+    outline: none;
+}
+
+.progress {
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.progress-bar {
+    border-radius: 10px;
+    transition: width 0.3s ease;
+}
+
+/* Notification animations */
+@keyframes slideInRight {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes slideInDown {
+    from {
+        transform: translateY(-100%) translateX(-50%);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0) translateX(-50%);
+        opacity: 1;
+    }
+}
+
+/* Pulse animation for timer */
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.6; }
+    100% { opacity: 1; }
+}
+
+.pulse-animation {
+    animation: pulse 0.8s infinite;
+}
+
+/* Flash message container */
+#flash-message-container .alert {
+    animation: slideInDown 0.3s ease-out;
+}
+
+/* Notification styling */
+.notification-message {
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    border-radius: 8px;
+    border-left: 4px solid;
+}
+
+.notification-message.alert-success {
+    border-left-color: #198754;
+}
+
+.notification-message.alert-danger {
+    border-left-color: #dc3545;
+}
+
+.notification-message.alert-warning {
+    border-left-color: #ffc107;
+}
+
+.notification-message.alert-info {
+    border-left-color: #0dcaf0;
+}
+
+/* Modal styling */
+#submitConfirmModal .modal-content {
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+#submitConfirmModal .modal-header {
+    padding: 1.2rem 1.5rem;
+}
+
+#submitConfirmModal .modal-body {
+    padding: 1.5rem;
+}
+
+#submitConfirmModal .modal-footer {
+    padding: 1rem 1.5rem;
+    background-color: #f8f9fa;
+}
+
+#submitConfirmModal .btn-success {
+    padding: 0.5rem 1.5rem;
+    font-weight: 500;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .exam-card .card-body {
+        padding: 1.5rem;
+    }
+    
+    .option-label {
+        padding: 0.75rem 1rem;
+    }
+    
+    .action-buttons .btn {
+        padding: 0.5rem 1rem;
+        font-size: 0.9rem;
+    }
+    
+    #flash-message-container {
+        width: 95%;
+        max-width: 95%;
+    }
+    
+    .notification-message {
+        max-width: 90% !important;
+        right: 5% !important;
+        left: 5% !important;
+    }
+    
+    #submitConfirmModal .modal-dialog {
+        margin: 1rem;
+    }
+}
+</style>
+{% endblock %}
