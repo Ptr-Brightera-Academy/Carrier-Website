@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Dashboard{% endblock %}</title>
 
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -19,7 +20,7 @@
     <div class="row">
       {% include "users/partials/sidebar.html" %}
 
-      <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
+        <main class="col-12 col-md-9 ms-md-auto col-lg-10 px-3 px-md-4">
         {% block content %}{% endblock %}
       </main>
     </div>
